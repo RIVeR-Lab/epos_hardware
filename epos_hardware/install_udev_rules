@@ -1,0 +1,14 @@
+#!/bin/bash
+
+echo ""
+echo "This script copies a udev rule for ftd2xx devices"
+echo ""
+
+sudo cp `rospack find epos_hardware`/90-ftd2xx.rules /etc/udev/rules.d
+
+
+echo ""
+echo "Restarting udev"
+echo ""
+sudo service udev reload
+sudo service udev restart

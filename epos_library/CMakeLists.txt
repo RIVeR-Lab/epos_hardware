@@ -10,6 +10,17 @@ find_package(catkin REQUIRED)
 # find_package(Boost REQUIRED COMPONENTS system)
 
 
+# find the 32 or 64 bit libraries
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(ARCH "64bit")
+else(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(ARCH "32bit")
+endif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+
+## Declare a cpp library
+find_library(FTD2XX_LIB NAMES ftd2xx PATHS "lib/${ARCH}")
+find_library(EPOSCMD_LIB NAMES EposCmd PATHS "lib/${ARCH}")
+
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -90,22 +101,15 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 
-## Declare a cpp library
-# add_library(epos_library
-#   src/${PROJECT_NAME}/epos_library.cpp
-# )
 
-## Declare a cpp executable
-# add_executable(epos_library_node src/epos_library_node.cpp)
+add_library(ftd2xx ${FTD2XX_LIB})
+add_custom_command(TARGET ftd2xx POST_BUILD COMMAND cp ${FTD2XX_LIB} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/)
+set_target_properties(ftd2xx PROPERTIES LINKER_LANGUAGE CXX)
 
-## Add cmake target dependencies of the executable/library
-## as an example, message headers may need to be generated before nodes
-# add_dependencies(epos_library_node epos_library_generate_messages_cpp)
+add_library(EposCmd ${EPOSCMD_LIB})
+add_custom_command(TARGET EposCmd POST_BUILD COMMAND cp ${EPOSCMD_LIB} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/)
+set_target_properties(EposCmd PROPERTIES LINKER_LANGUAGE CXX)
 
-## Specify libraries to link a library or executable target against
-# target_link_libraries(epos_library_node
-#   ${catkin_LIBRARIES}
-# )
 
 #############
 ## Install ##
@@ -122,18 +126,18 @@ catkin_package(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS epos_library epos_library_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(TARGETS ftd2xx EposCmd
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.h"
+  PATTERN ".svn" EXCLUDE
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES

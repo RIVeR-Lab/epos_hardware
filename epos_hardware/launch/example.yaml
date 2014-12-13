@@ -1,3 +1,6 @@
+# Time in seconds
+# Current in amps
+# position, velocity, and acceleration in device units
 motors:
   - name: Test Motor
     serial_number: '662080000026'
@@ -22,3 +25,12 @@ motors:
       max_following_error: 20000
       max_profile_velocity: 12000
       max_acceleration: 15000
+
+    position_profile:
+      velocity: 10000
+      acceleration: 8000
+      deceleration: 14000
+
+    velocity_profile:
+      acceleration: 8000
+      deceleration: 9000

@@ -1,0 +1,24 @@
+motors:
+  - name: Test Motor
+    serial_number: '662080000026'
+    operation_mode: 3
+    clear_faults: true
+
+    motor:
+      type: 10
+      ec_motor:
+        nominal_current: 9.650
+        max_output_current: 23.600
+        thermal_time_constant: 2.11
+        number_of_pole_pairs: 2
+
+    sensor:
+      type: 1
+      incremental_encoder:
+        resolution: 500
+        inverted_polarity: false
+
+    safety:
+      max_following_error: 20000
+      max_profile_velocity: 12000
+      max_acceleration: 15000

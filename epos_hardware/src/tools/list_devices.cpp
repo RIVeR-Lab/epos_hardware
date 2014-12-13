@@ -21,6 +21,8 @@ int main(int argc, char** argv){
   std::string error_string;
   unsigned int error_code = 0;
 
+  EposFactory epos_factory;
+
   std::cout << "Listing Devices:" << std::endl;
 
   std::vector<std::string> device_names;
@@ -54,16 +56,16 @@ int main(int argc, char** argv){
 		      std::cout << "\t\t\t\t\t" << std::dec << baudrate <<std::endl;
 		    }
 
-		    std::vector<EnumeratedDevice> devices;
-		    if(EnumerateDevices(device_name, protocol_stack_name, interface_name, port_name, &devices, &error_code)) {
+		    std::vector<EnumeratedNode> devices;
+		    if(epos_factory.EnumerateNodes(device_name, protocol_stack_name, interface_name, port_name, &devices, &error_code)) {
 		      std::cout << "\t\t\t\tDevices:" << std::endl;
-		      BOOST_FOREACH(const EnumeratedDevice& device, devices) {
-			std::cout << "\t\t\t\t\tNode Id: " << std::dec << device.node_id << std::endl;
-			std::cout << "\t\t\t\t\t\tSerial Number: 0x" << std::hex << device.serial_number << std::endl;
-			std::cout << "\t\t\t\t\t\tHardware Version: 0x" << std::hex << device.hardware_version << std::endl;
-			std::cout << "\t\t\t\t\t\tSoftware Version: 0x" << std::hex << device.software_version << std::endl;
-			std::cout << "\t\t\t\t\t\tApplication Number: 0x" << std::hex << device.application_number << std::endl;
-			std::cout << "\t\t\t\t\t\tApplication Version: 0x" << std::hex << device.application_version << std::endl;
+		      BOOST_FOREACH(const EnumeratedNode& node, devices) {
+			std::cout << "\t\t\t\t\tNode Id: " << std::dec << node.node_id << std::endl;
+			std::cout << "\t\t\t\t\t\tSerial Number: 0x" << std::hex << node.serial_number << std::endl;
+			std::cout << "\t\t\t\t\t\tHardware Version: 0x" << std::hex << node.hardware_version << std::endl;
+			std::cout << "\t\t\t\t\t\tSoftware Version: 0x" << std::hex << node.software_version << std::endl;
+			std::cout << "\t\t\t\t\t\tApplication Number: 0x" << std::hex << node.application_number << std::endl;
+			std::cout << "\t\t\t\t\t\tApplication Version: 0x" << std::hex << node.application_version << std::endl;
 		      }
 		    }
 		    else {

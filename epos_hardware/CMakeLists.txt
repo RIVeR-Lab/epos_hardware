@@ -7,6 +7,7 @@ project(epos_hardware)
 find_package(catkin REQUIRED COMPONENTS
   epos_library
   hardware_interface
+  controller_manager
   roscpp
 )
 
@@ -82,7 +83,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES epos_hardware
-  CATKIN_DEPENDS epos_library hardware_interface roscpp
+  CATKIN_DEPENDS epos_library hardware_interface roscpp controller_manager
 #  DEPENDS system_lib
 )
 
@@ -119,6 +120,21 @@ target_link_libraries(get_state
   epos_library_utils
 )
 
+add_library(epos_hardware
+  src/util/epos_hardware.cpp
+)
+target_link_libraries(epos_hardware
+  ${catkin_LIBRARIES}
+  epos_library_utils
+)
+
+
+add_executable(epos_hardware_node src/nodes/epos_hardware_node.cpp)
+target_link_libraries(epos_hardware_node
+  ${catkin_LIBRARIES}
+  epos_hardware
+)
+
 #############
 ## Install ##
 #############
@@ -134,7 +150,7 @@ install(PROGRAMS
 )
 
 ## Mark executables and/or libraries for installation
-install(TARGETS list_devices get_state
+install(TARGETS list_devices get_state epos_hardware_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

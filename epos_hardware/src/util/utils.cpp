@@ -1,7 +1,15 @@
 #include "epos_hardware/utils.h"
 #include <boost/foreach.hpp>
+#include <sstream>
 
 #define MAX_STRING_SIZE 1000
+
+bool SerialNumberFromHex(const std::string& str, uint64_t* serial_number) {
+  std::stringstream ss;
+  ss << std::hex << str;
+  ss >> *serial_number;
+  return true;
+}
 
 int GetErrorInfo(unsigned int error_code, std::string* error_string) {
   char buffer[MAX_STRING_SIZE];
@@ -115,42 +123,89 @@ int GetBaudrateList(const std::string device_name, const std::string protocol_st
   return 1;
 }
 
-void* OpenDevice(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
-		 const std::string port_name, unsigned int* error_code) {
-  return VCS_OpenDevice((char*)device_name.c_str(), (char*)protocol_stack_name.c_str(), (char*)interface_name.c_str(), (char*)port_name.c_str(), error_code);
+
+
+
+
+EposFactory::EposFactory() {
 }
 
-int EnumerateDevices(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
-		     const std::string port_name, std::vector<EnumeratedDevice>* devices, unsigned int* error_code) {
-  void* handle;
-  if(!(handle = OpenDevice(device_name, protocol_stack_name, interface_name, port_name, error_code))){
+DeviceHandlePtr EposFactory::CreateDeviceHandle(const std::string device_name,
+						const std::string protocol_stack_name,
+						const std::string interface_name,
+						const std::string port_name,
+						unsigned int* error_code) {
+  const std::string key = device_name + '/' + protocol_stack_name + '/' + interface_name + '/' + port_name;
+  DeviceHandlePtr handle;
+  if(!(handle = existing_handles[key].lock())) { // Handle exists
+    void* raw_handle = VCS_OpenDevice((char*)device_name.c_str(), (char*)protocol_stack_name.c_str(), (char*)interface_name.c_str(), (char*)port_name.c_str(), error_code);
+    if(!raw_handle) // failed to open device
+      return DeviceHandlePtr();
+
+    handle = DeviceHandlePtr(new DeviceHandle(raw_handle));
+    existing_handles[key] = handle;
+  }
+
+  return handle;
+}
+
+NodeHandlePtr EposFactory::CreateNodeHandle(const std::string device_name,
+					    const std::string protocol_stack_name,
+					    const std::string interface_name,
+					    const uint64_t serial_number,
+					    unsigned int* error_code) {
+  std::vector<EnumeratedNode> nodes;
+  EnumerateNodes(device_name, protocol_stack_name, interface_name, &nodes, error_code);
+  BOOST_FOREACH(const EnumeratedNode& node, nodes) {
+    if(node.serial_number == serial_number) {
+      return CreateNodeHandle(node, error_code);
+    }
+  }
+  return NodeHandlePtr();
+}
+
+NodeHandlePtr EposFactory::CreateNodeHandle(const EnumeratedNode& node,
+					    unsigned int* error_code) {
+  DeviceHandlePtr device_handle = CreateDeviceHandle(node.device_name, node.protocol_stack_name, node.interface_name, node.port_name, error_code);
+  if(!device_handle)
+    return NodeHandlePtr();
+  return NodeHandlePtr(new NodeHandle(device_handle, node.node_id));
+}
+
+
+
+int EposFactory::EnumerateNodes(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
+				const std::string port_name, std::vector<EnumeratedNode>* nodes, unsigned int* error_code) {
+  DeviceHandlePtr handle;
+  if(!(handle = CreateDeviceHandle(device_name, protocol_stack_name, interface_name, port_name, error_code))){
     return 0;
   }
   for(unsigned short i = 1; i < 127; ++i) {
-    EnumeratedDevice device;
-    device.port_name = port_name;
-    device.node_id = i;
-    if(!VCS_GetVersion(handle, i, &device.hardware_version, &device.software_version, &device.application_number, &device.application_version, error_code)){
-      VCS_CloseDevice(handle, error_code);
+    EnumeratedNode node;
+    node.device_name = device_name;
+    node.protocol_stack_name = protocol_stack_name;
+    node.interface_name = interface_name;
+    node.port_name = port_name;
+    node.node_id = i;
+    if(!VCS_GetVersion(handle->ptr, i, &node.hardware_version, &node.software_version, &node.application_number, &node.application_version, error_code)){
       return 1;
     }
     unsigned int bytes_read;
-    if(!VCS_GetObject(handle, i, 0x2004, 0x00, &device.serial_number, 8, &bytes_read, error_code)){
-      device.serial_number = 0;
+    if(!VCS_GetObject(handle->ptr, i, 0x2004, 0x00, &node.serial_number, 8, &bytes_read, error_code)){
+      node.serial_number = 0;
     }
-    devices->push_back(device);
+    nodes->push_back(node);
   }
-  VCS_CloseDevice(handle, error_code);
   return 1;
 }
 
 
-int EnumerateDevices(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
-		     std::vector<EnumeratedDevice>* devices, unsigned int* error_code) {
+int EposFactory::EnumerateNodes(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
+				std::vector<EnumeratedNode>* nodes, unsigned int* error_code) {
   std::vector<std::string> port_names;
   if(GetPortNameList(device_name, protocol_stack_name, interface_name, &port_names, error_code)) {
     BOOST_FOREACH(const std::string& port_name, port_names) {
-      if(!EnumerateDevices(device_name, protocol_stack_name, interface_name, port_name, devices, error_code)){
+      if(!EnumerateNodes(device_name, protocol_stack_name, interface_name, port_name, nodes, error_code)){
 	return 0;
       }
     }

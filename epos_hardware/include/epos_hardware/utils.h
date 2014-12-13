@@ -1,7 +1,12 @@
 #include <string>
 #include <vector>
+#include <map>
 #include <stdint.h>
 #include "epos_library/Definitions.h"
+#include <boost/shared_ptr.hpp>
+#include <boost/weak_ptr.hpp>
+
+bool SerialNumberFromHex(const std::string& str, uint64_t* serial_number);
 
 int GetErrorInfo(unsigned int error_code, std::string* error_string);
 
@@ -18,11 +23,32 @@ int GetPortNameList(const std::string device_name, const std::string protocol_st
 int GetBaudrateList(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
 		    const std::string port_name, std::vector<unsigned int>* port_names, unsigned int* error_code);
 
-void* OpenDevice(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
-		 const std::string port_name, unsigned int* error_code);
 
+// An object that wraps a handle and closes it when destroyed
+class DeviceHandle {
+public:
+  DeviceHandle(void* ptr) : ptr(ptr) {}
+  ~DeviceHandle() {
+    unsigned int error_code;
+    VCS_CloseDevice(const_cast<void*>(ptr), &error_code);
+  }
+  void* const ptr;
+};
+typedef boost::shared_ptr<DeviceHandle> DeviceHandlePtr;
+
+class NodeHandle {
+public:
+  NodeHandle(DeviceHandlePtr device_handle, unsigned short node_id)
+    : device_handle(device_handle), node_id(node_id) {}
+  const DeviceHandlePtr device_handle;
+  const unsigned short node_id;
+};
+typedef boost::shared_ptr<NodeHandle> NodeHandlePtr;
 
 typedef struct {
+  std::string device_name;
+  std::string protocol_stack_name;
+  std::string interface_name;
   std::string port_name;
   unsigned short node_id;
   uint64_t serial_number;
@@ -30,10 +56,35 @@ typedef struct {
   unsigned short software_version;
   unsigned short application_number;
   unsigned short application_version;
-} EnumeratedDevice;
+} EnumeratedNode;
 
-int EnumerateDevices(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
-		     const std::string port_name, std::vector<EnumeratedDevice>* devices, unsigned int* error_code);
+class EposFactory {
+public:
 
-int EnumerateDevices(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
-		     std::vector<EnumeratedDevice>* devices, unsigned int* error_code);
+  EposFactory();
+  DeviceHandlePtr CreateDeviceHandle(const std::string device_name,
+				     const std::string protocol_stack_name,
+				     const std::string interface_name,
+				     const std::string port_name,
+				     unsigned int* error_code);
+
+  NodeHandlePtr CreateNodeHandle(const std::string device_name,
+				 const std::string protocol_stack_name,
+				 const std::string interface_name,
+				 uint64_t serial_number,
+				 unsigned int* error_code);
+
+  NodeHandlePtr CreateNodeHandle(const EnumeratedNode& node,
+				 unsigned int* error_code);
+
+
+  int EnumerateNodes(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
+		     const std::string port_name, std::vector<EnumeratedNode>* devices, unsigned int* error_code);
+
+  int EnumerateNodes(const std::string device_name, const std::string protocol_stack_name, const std::string interface_name,
+		     std::vector<EnumeratedNode>* devices, unsigned int* error_code);
+
+
+private:
+  std::map<std::string, boost::weak_ptr<DeviceHandle> > existing_handles;
+};

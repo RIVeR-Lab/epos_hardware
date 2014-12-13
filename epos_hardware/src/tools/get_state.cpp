@@ -6,12 +6,7 @@
 int main(int argc, char** argv){
   uint64_t serial_number;
   if(argc == 2){
-    try {
-      std::stringstream ss;
-      ss << std::hex << argv[1];
-      ss >> serial_number;
-    } catch(boost::bad_lexical_cast &e) {
-      std::cerr << e.what() << std::endl;
+    if(!SerialNumberFromHex(argv[1], &serial_number)) {
       std::cerr << "Expected a serial number" << std::endl;
       return 1;
     }
@@ -27,34 +22,14 @@ int main(int argc, char** argv){
   std::cout << "Searching for USB EPOS2: 0x" << std::hex << serial_number << std::endl;
 
   std::string port_name;
-  unsigned short node_id;
 
-  std::vector<EnumeratedDevice> devices;
-  if(EnumerateDevices("EPOS2", "MAXON SERIAL V2", "USB", &devices, &error_code)) {
-    BOOST_FOREACH(const EnumeratedDevice& device, devices) {
-      if(device.serial_number == serial_number){
-	port_name = device.port_name;
-	node_id = device.node_id;
-	break;
-      }
-    }
-  }
-  else {
-    if(GetErrorInfo(error_code, &error_string)){
-      std::cerr << "Could not enumerate devices: " << error_string << std::endl;
-    } else {
-      std::cerr << "Could not enumerate devices" << std::endl;
-    }
-    return 1;
-  }
+  EposFactory epos_factory;
 
-  std::cout << "Found device on " << port_name << " : " << std::dec << node_id << std::endl;
-
-  void* handle;
-  if(handle = OpenDevice("EPOS2", "MAXON SERIAL V2", "USB", port_name, &error_code)) {
+  NodeHandlePtr handle;
+  if(handle = epos_factory.CreateNodeHandle("EPOS2", "MAXON SERIAL V2", "USB", serial_number, &error_code)) {
     int position;
-    if(VCS_GetPositionIs(handle, node_id, &position, &error_code)){
-      std::cout << "Position: " << position << std::endl;
+    if(VCS_GetPositionIs(handle->device_handle->ptr, handle->node_id, &position, &error_code)){
+      std::cout << "Position: " << std::dec << position << std::endl;
     }
     else {
       if(GetErrorInfo(error_code, &error_string)){
@@ -65,8 +40,8 @@ int main(int argc, char** argv){
     }
 
     int velocity;
-    if(VCS_GetVelocityIs(handle, node_id, &velocity, &error_code)){
-      std::cout << "Velocity: " << velocity << std::endl;
+    if(VCS_GetVelocityIs(handle->device_handle->ptr, handle->node_id, &velocity, &error_code)){
+      std::cout << "Velocity: " << std::dec << velocity << std::endl;
     }
     else {
       if(GetErrorInfo(error_code, &error_string)){
@@ -77,8 +52,8 @@ int main(int argc, char** argv){
     }
 
     short current;
-    if(VCS_GetCurrentIs(handle, node_id, &current, &error_code)){
-      std::cout << "Current: " << current << std::endl;
+    if(VCS_GetCurrentIs(handle->device_handle->ptr, handle->node_id, &current, &error_code)){
+      std::cout << "Current: " << std::dec << current << std::endl;
     }
     else {
       if(GetErrorInfo(error_code, &error_string)){
@@ -97,5 +72,4 @@ int main(int argc, char** argv){
     }
     return 1;
   }
-  VCS_CloseDevice(handle, &error_code);
 }

@@ -1,0 +1,5 @@
+<launch>
+  <node name="epos_hardware" pkg="epos_hardware" type="epos_hardware_node">
+    <rosparam command="load" file="$(find epos_hardware)/launch/example.yaml" />
+  </node>
+</launch>

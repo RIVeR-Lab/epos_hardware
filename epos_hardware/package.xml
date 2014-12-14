@@ -42,10 +42,12 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>epos_library</build_depend>
   <build_depend>hardware_interface</build_depend>
+  <build_depend>transmission_interface</build_depend>
   <build_depend>controller_manager</build_depend>
   <build_depend>roscpp</build_depend>
   <run_depend>epos_library</run_depend>
   <run_depend>hardware_interface</run_depend>
+  <run_depend>transmission_interface</run_depend>
   <run_depend>controller_manager</run_depend>
   <run_depend>roscpp</run_depend>
 

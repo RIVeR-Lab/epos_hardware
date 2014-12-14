@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<robot name="example">
+  <link name="link1">
+    <inertial>
+      <mass value="1"/>
+      <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+  <link name="link2">
+    <inertial>
+      <mass value="1"/>
+      <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+  <joint name="test_joint" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+  </joint>
+  <transmission name="test_joint_trans">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="test_joint">
+      <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="test_joint_actuator">
+      <mechanicalReduction>1000</mechanicalReduction>
+    </actuator>
+  </transmission>
+</robot>

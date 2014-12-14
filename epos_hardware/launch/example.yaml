@@ -2,8 +2,9 @@
 # Current in amps
 # position, velocity, and acceleration in device units
 motors:
-  - name: Test Motor
+  - name: test_joint_actuator
     serial_number: '662080000026'
+    #operation_mode: 1
     operation_mode: 3
     clear_faults: true
 
@@ -11,7 +12,7 @@ motors:
       type: 10
       ec_motor:
         nominal_current: 9.650
-        max_output_current: 23.600
+        max_output_current: 10.500
         thermal_time_constant: 2.11
         number_of_pole_pairs: 2
 
@@ -29,7 +30,7 @@ motors:
     position_profile:
       velocity: 10000
       acceleration: 8000
-      deceleration: 14000
+      deceleration: 9000
 
     velocity_profile:
       acceleration: 8000

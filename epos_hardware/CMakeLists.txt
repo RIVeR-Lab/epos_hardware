@@ -7,6 +7,7 @@ project(epos_hardware)
 find_package(catkin REQUIRED COMPONENTS
   epos_library
   hardware_interface
+  transmission_interface
   controller_manager
   roscpp
 )

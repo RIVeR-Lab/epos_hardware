@@ -3,8 +3,13 @@
 
 namespace epos_hardware {
 
-Epos::Epos(XmlRpc::XmlRpcValue& config_xml, EposFactory* epos_factory)
-  : config_xml_(config_xml), epos_factory_(epos_factory) {
+Epos::Epos(XmlRpc::XmlRpcValue& config_xml, EposFactory* epos_factory,
+	   hardware_interface::ActuatorStateInterface& asi,
+	   hardware_interface::VelocityActuatorInterface& avi,
+	   hardware_interface::PositionActuatorInterface& api)
+  : config_xml_(config_xml), epos_factory_(epos_factory),
+    position_(0), velocity_(0), effort_(0), current_(0),
+    position_cmd_(0), velocity_cmd_(0) {
   ROS_ASSERT(config_xml_.getType() == XmlRpc::XmlRpcValue::TypeStruct);
 
   ROS_ASSERT(config_xml_["name"].getType() == XmlRpc::XmlRpcValue::TypeString);
@@ -15,10 +20,19 @@ Epos::Epos(XmlRpc::XmlRpcValue& config_xml, EposFactory* epos_factory)
 
   ROS_ASSERT(config_xml_["operation_mode"].getType() == XmlRpc::XmlRpcValue::TypeInt);
   operation_mode_ = (OperationMode)static_cast<int>(config_xml_["operation_mode"]);
+
+  hardware_interface::ActuatorStateHandle state_handle(name_, &position_, &velocity_, &effort_);
+  asi.registerHandle(state_handle);
+
+  hardware_interface::ActuatorHandle position_handle(state_handle, &position_cmd_);
+  api.registerHandle(position_handle);
+  hardware_interface::ActuatorHandle velocity_handle(state_handle, &velocity_cmd_);
+  avi.registerHandle(velocity_handle);
 }
 Epos::~Epos() {
   unsigned int error_code;
-  VCS_SetDisableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
+  if(node_handle_)
+    VCS_SetDisableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
 }
 
 bool Epos::init() {
@@ -33,9 +47,14 @@ bool Epos::init() {
     return false;
   }
 
+  if(!VCS_SetDisableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
+    return false;
+
+
   if(!VCS_SetOperationMode(node_handle_->device_handle->ptr, node_handle_->node_id, operation_mode_, &error_code))
     return false;
 
+  ROS_INFO("Configuring Motor");
   {
     XmlRpc::XmlRpcValue& motor_xml = config_xml_["motor"];
     ROS_ASSERT(motor_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
@@ -75,6 +94,7 @@ bool Epos::init() {
     }
   }
 
+  ROS_INFO("Configuring Sensor");
   {
     XmlRpc::XmlRpcValue& sensor_xml = config_xml_["sensor"];
     ROS_ASSERT(sensor_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
@@ -124,6 +144,7 @@ bool Epos::init() {
   }
 
   if(config_xml_.hasMember("safety")) {
+    ROS_INFO("Configuring Safety");
     XmlRpc::XmlRpcValue& safety_xml = config_xml_["safety"];
     ROS_ASSERT(safety_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
     if(safety_xml.hasMember("max_following_error")) {
@@ -152,6 +173,7 @@ bool Epos::init() {
   }
 
   if(config_xml_.hasMember("position_regulator")) {
+    ROS_INFO("Position Regulator");
     XmlRpc::XmlRpcValue& position_xml = config_xml_["position_regulator"];
     ROS_ASSERT(position_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
     if(position_xml.hasMember("gain")) {
@@ -183,66 +205,7 @@ bool Epos::init() {
   }
 
   if(config_xml_.hasMember("velocity_regulator")) {
-    XmlRpc::XmlRpcValue& velocity_xml = config_xml_["velocity_regulator"];
-    ROS_ASSERT(velocity_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-    if(velocity_xml.hasMember("gain")) {
-      XmlRpc::XmlRpcValue& gain_xml = velocity_xml["gain"];
-      ROS_ASSERT(gain_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(gain_xml["p"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(gain_xml["i"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetVelocityRegulatorGain(node_handle_->device_handle->ptr, node_handle_->node_id,
-				       static_cast<int>(gain_xml["p"]),
-				       static_cast<int>(gain_xml["i"]),
-				       &error_code))
-	return false;
-    }
-
-    if(velocity_xml.hasMember("feed_forward")) {
-      XmlRpc::XmlRpcValue& feed_forward_xml = velocity_xml["feed_forward"];
-      ROS_ASSERT(feed_forward_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(feed_forward_xml["velocity"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(feed_forward_xml["acceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetVelocityRegulatorFeedForward(node_handle_->device_handle->ptr, node_handle_->node_id,
-					      static_cast<int>(feed_forward_xml["velocity"]),
-					      static_cast<int>(feed_forward_xml["acceleration"]),
-					      &error_code))
-	return false;
-    }
-
-  }
-
-
-  if(config_xml_.hasMember("velocity_regulator")) {
-    XmlRpc::XmlRpcValue& velocity_xml = config_xml_["velocity_regulator"];
-    ROS_ASSERT(velocity_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-    if(velocity_xml.hasMember("gain")) {
-      XmlRpc::XmlRpcValue& gain_xml = velocity_xml["gain"];
-      ROS_ASSERT(gain_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(gain_xml["p"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(gain_xml["i"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetVelocityRegulatorGain(node_handle_->device_handle->ptr, node_handle_->node_id,
-				       static_cast<int>(gain_xml["p"]),
-				       static_cast<int>(gain_xml["i"]),
-				       &error_code))
-	return false;
-    }
-
-    if(velocity_xml.hasMember("feed_forward")) {
-      XmlRpc::XmlRpcValue& feed_forward_xml = velocity_xml["feed_forward"];
-      ROS_ASSERT(feed_forward_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(feed_forward_xml["velocity"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(feed_forward_xml["acceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetVelocityRegulatorFeedForward(node_handle_->device_handle->ptr, node_handle_->node_id,
-					      static_cast<int>(feed_forward_xml["velocity"]),
-					      static_cast<int>(feed_forward_xml["acceleration"]),
-					      &error_code))
-	return false;
-    }
-
-  }
-
-
-  if(config_xml_.hasMember("velocity_regulator")) {
+    ROS_INFO("Velocity Regulator");
     XmlRpc::XmlRpcValue& velocity_xml = config_xml_["velocity_regulator"];
     ROS_ASSERT(velocity_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
     if(velocity_xml.hasMember("gain")) {
@@ -272,6 +235,7 @@ bool Epos::init() {
   }
 
   if(config_xml_.hasMember("current_regulator")) {
+    ROS_INFO("Current Regulator");
     XmlRpc::XmlRpcValue& current_xml = config_xml_["current_regulator"];
     ROS_ASSERT(current_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
     if(current_xml.hasMember("gain")) {
@@ -288,6 +252,7 @@ bool Epos::init() {
   }
 
   if(config_xml_.hasMember("position_profile")) {
+    ROS_INFO("Position Profile");
     XmlRpc::XmlRpcValue& position_xml = config_xml_["position_profile"];
     ROS_ASSERT(position_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
     ROS_ASSERT(position_xml["velocity"].getType() == XmlRpc::XmlRpcValue::TypeInt);
@@ -315,6 +280,7 @@ bool Epos::init() {
 
 
   if(config_xml_.hasMember("velocity_profile")) {
+    ROS_INFO("Velocity Profile");
     XmlRpc::XmlRpcValue& velocity_xml = config_xml_["velocity_profile"];
     ROS_ASSERT(velocity_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
     ROS_ASSERT(velocity_xml["acceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
@@ -339,6 +305,7 @@ bool Epos::init() {
 
 
 
+  ROS_INFO("Querying Faults");
   unsigned char num_errors;
   if(!VCS_GetNbOfDeviceError(node_handle_->device_handle->ptr, node_handle_->node_id, &num_errors, &error_code))
     return false;
@@ -366,19 +333,33 @@ bool Epos::init() {
   return true;
 }
 void Epos::read() {
+  if(!node_handle_)
+    return;
+
   unsigned int error_code;
-  int position;
-  int velocity;
-  short current;
-  VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position, &error_code);
-  VCS_GetVelocityIs(node_handle_->device_handle->ptr, node_handle_->node_id, &velocity, &error_code);
-  VCS_GetCurrentIs(node_handle_->device_handle->ptr, node_handle_->node_id, &current, &error_code);
-  //ROS_INFO("Motor: %d, %d, %d", position, velocity, current);
+  int position_raw;
+  int velocity_raw;
+  short current_raw;
+  VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position_raw, &error_code);
+  VCS_GetVelocityIs(node_handle_->device_handle->ptr, node_handle_->node_id, &velocity_raw, &error_code);
+  VCS_GetCurrentIs(node_handle_->device_handle->ptr, node_handle_->node_id, &current_raw, &error_code);
+  position_ = position_raw;
+  velocity_ = velocity_raw;
+  effort_ = 0;
+  current_ = current_raw  * 1000.0; // mA -> A
 }
 
 void Epos::write() {
+  if(!node_handle_)
+    return;
+
   unsigned int error_code;
-  VCS_MoveWithVelocity(node_handle_->device_handle->ptr, node_handle_->node_id, 100, &error_code);
+  if(operation_mode_ == PROFILE_VELOCITY_MODE) {
+    VCS_MoveWithVelocity(node_handle_->device_handle->ptr, node_handle_->node_id, (int)velocity_cmd_, &error_code);
+  }
+  else if(operation_mode_ == PROFILE_POSITION_MODE) {
+    VCS_MoveToPosition(node_handle_->device_handle->ptr, node_handle_->node_id, (int)position_cmd_, true, true, &error_code);
+  }
 }
 
 EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh) {
@@ -388,16 +369,77 @@ EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh) {
 
     for (int32_t i = 0; i < motors_xml.size(); ++i) {
       XmlRpc::XmlRpcValue motor_xml = motors_xml[i];
-      boost::shared_ptr<Epos> motor(new Epos(motor_xml, &epos_factory));
+      boost::shared_ptr<Epos> motor(new Epos(motor_xml, &epos_factory, asi, avi, api));
+      motor_names.push_back(motor->name());
       motors.push_back(motor);
     }
   }
   else {
     ROS_FATAL("No motors defined");
   }
+
+  // TODO throw exception or something
+  try {
+    transmission_loader.reset(new transmission_interface::TransmissionInterfaceLoader(this, &robot_transmissions));
+  }
+  catch(const std::invalid_argument& ex){
+    ROS_ERROR_STREAM("Failed to create transmission interface loader. " << ex.what());
+    return;
+  }
+  catch(const pluginlib::LibraryLoadException& ex){
+    ROS_ERROR_STREAM("Failed to create transmission interface loader. " << ex.what());
+    return;
+  }
+  catch(...){
+    ROS_ERROR_STREAM("Failed to create transmission interface loader. ");
+    return;
+  }
+
+  registerInterface(&asi);
+  registerInterface(&avi);
+  registerInterface(&api);
+
+  std::string urdf_string;
+  nh.getParam("robot_description", urdf_string);
+  while (urdf_string.empty() && ros::ok()){
+    ROS_INFO_STREAM_ONCE("Waiting for robot_description");
+    nh.getParam("robot_description", urdf_string);
+    ros::Duration(0.1).sleep();
+  }
+
+  transmission_interface::TransmissionParser parser;
+  std::vector<transmission_interface::TransmissionInfo> infos;
+  // TODO: throw exception
+  if (!parser.parse(urdf_string, infos)) {
+    ROS_ERROR("Error parsing URDF");
+    return;
+  }
+
+  BOOST_FOREACH(const transmission_interface::TransmissionInfo& info, infos) {
+    bool found_some = false;
+    bool found_all = true;
+    BOOST_FOREACH(const transmission_interface::ActuatorInfo& actuator, info.actuators_) {
+      if(std::find(motor_names.begin(), motor_names.end(), actuator.name_) != motor_names.end())
+	found_some = true;
+      else
+	found_all = false;
+    }
+    if(found_all) {
+      if (!transmission_loader->load(info)) {
+	ROS_ERROR_STREAM("Error loading transmission: " << info.name_);
+	return;
+      }
+      else
+	ROS_INFO_STREAM("Loaded transmission: " << info.name_);
+    }
+    else if(found_some){
+      ROS_ERROR_STREAM("Do not support transmissions that contain only some EPOS actuators: " << info.name_);
+    }
+  }
+
 }
 
-void EposHardware::init() {
+bool EposHardware::init() {
   BOOST_FOREACH(const boost::shared_ptr<Epos>& motor, motors) {
     if(!motor->init())
       ROS_ERROR("Could not configure motor");
@@ -408,9 +450,14 @@ void EposHardware::read() {
   BOOST_FOREACH(const boost::shared_ptr<Epos>& motor, motors) {
     motor->read();
   }
+  robot_transmissions.get<transmission_interface::ActuatorToJointStateInterface>()->propagate();
 }
 
 void EposHardware::write() {
+  if(robot_transmissions.get<transmission_interface::JointToActuatorVelocityInterface>())
+    robot_transmissions.get<transmission_interface::JointToActuatorVelocityInterface>()->propagate();
+  if(robot_transmissions.get<transmission_interface::JointToActuatorPositionInterface>())
+    robot_transmissions.get<transmission_interface::JointToActuatorPositionInterface>()->propagate();
   BOOST_FOREACH(const boost::shared_ptr<Epos>& motor, motors) {
     motor->write();
   }

@@ -1,0 +1,26 @@
+language:
+  - cpp
+compiler:
+  - gcc
+
+install:
+  - sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu precise main" > /etc/apt/sources.list.d/ros-latest.list'
+  - wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
+  - sudo apt-get update -qq
+  - sudo apt-get install python-catkin-pkg python-rosdep python-catkin-tools python-catkin-lint ros-hydro-catkin ros-hydro-ros-base -qq
+  - sudo rosdep init
+  - rosdep update
+  - mkdir -p /tmp/ws/src
+  - ln -s `pwd` /tmp/ws/src/package
+  - cd /tmp/ws
+  - rosdep install --from-paths src --ignore-src --rosdistro hydro -y
+
+script:
+  - source /opt/ros/hydro/setup.bash
+  - catkin build --no-status
+  - source devel/setup.bash
+  - catkin lint src/package -W2 --ignore description_meaningless
+  - catkin config --install
+  - catkin clean -b
+  - catkin build --no-status
+  - source install/setup.bash

@@ -16,7 +16,10 @@ int main(int argc, char** argv) {
   spinner.start();
 
   ROS_INFO("Initializing Motors");
-  robot.init();
+  if(!robot.init()) {
+    ROS_FATAL("Failed to initialize motors");
+    return 1;
+  }
   ROS_INFO("Motors Initialized");
 
   ros::Rate controller_rate(50);

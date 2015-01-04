@@ -1,3 +1,6 @@
+#ifndef EPOS_HARDWARE_UTILS_H_
+#define EPOS_HARDWARE_UTILS_H_
+
 #include <string>
 #include <vector>
 #include <map>
@@ -88,3 +91,6 @@ public:
 private:
   std::map<std::string, boost::weak_ptr<DeviceHandle> > existing_handles;
 };
+
+
+#endif

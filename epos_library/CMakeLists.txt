@@ -6,9 +6,9 @@ find_package(catkin REQUIRED)
 # find the 32 or 64 bit libraries
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
   set(ARCH "64bit")
-else(CMAKE_SIZEOF_VOID_P EQUAL 8)
+else()
   set(ARCH "32bit")
-endif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+endif()
 
 ## Declare a cpp library
 find_library(FTD2XX_LIB NAMES ftd2xx PATHS "lib/${ARCH}")
@@ -22,6 +22,8 @@ catkin_package(
 ###########
 ## Build ##
 ###########
+
+include_directories(include)
 
 add_library(ftd2xx ${FTD2XX_LIB})
 add_custom_command(TARGET ftd2xx POST_BUILD COMMAND cp ${FTD2XX_LIB} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/)

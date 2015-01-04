@@ -19,7 +19,7 @@ script:
   - source /opt/ros/hydro/setup.bash
   - catkin build --no-status
   - source devel/setup.bash
-  - catkin lint src/package -W2 --ignore description_meaningless
+  - catkin lint src/package -W2 --ignore description_meaningless --ignore target_name_collision
   - catkin config --install
   - catkin clean -b
   - catkin build --no-status

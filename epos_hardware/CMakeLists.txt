@@ -84,7 +84,7 @@ install(PROGRAMS
 
 
 # Mark libraries and nodes for installation
-install(TARGETS epos_manager epos_hardware list_devices get_state epos_hardware_node
+install(TARGETS epos_library_utils epos_manager epos_hardware list_devices get_state epos_hardware_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

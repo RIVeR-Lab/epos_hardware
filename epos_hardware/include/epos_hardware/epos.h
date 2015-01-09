@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <hardware_interface/actuator_command_interface.h>
 #include <hardware_interface/actuator_state_interface.h>
+#include <diagnostic_updater/diagnostic_updater.h>
 #include "epos_hardware/utils.h"
 
 namespace epos_hardware {
@@ -24,6 +25,7 @@ public:
   void read();
   void write();
   std::string name() { return name_; }
+  void buildStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
 private:
   XmlRpc::XmlRpcValue config_xml_;
   EposFactory* epos_factory_;
@@ -31,6 +33,7 @@ private:
   uint64_t serial_number_;
   OperationMode operation_mode_;
   NodeHandlePtr node_handle_;
+  bool has_init_;
 
   double position_;
   double velocity_;

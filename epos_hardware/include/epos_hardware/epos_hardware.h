@@ -20,6 +20,7 @@ public:
   bool init();
   void read();
   void write();
+  void update_diagnostics();
 private:
   EposManager epos_manager_;
 

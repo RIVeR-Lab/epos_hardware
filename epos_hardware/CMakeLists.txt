@@ -7,12 +7,13 @@ find_package(catkin REQUIRED COMPONENTS
   transmission_interface
   controller_manager
   roscpp
+  diagnostic_updater
 )
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES epos_library_utils epos_manager epos_hardware
-  CATKIN_DEPENDS epos_library hardware_interface roscpp controller_manager
+  CATKIN_DEPENDS epos_library hardware_interface roscpp controller_manager diagnostic_updater
 )
 
 ###########

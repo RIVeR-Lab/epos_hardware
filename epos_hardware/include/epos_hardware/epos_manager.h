@@ -7,6 +7,7 @@
 #include <hardware_interface/robot_hw.h>
 #include <transmission_interface/robot_transmissions.h>
 #include <transmission_interface/transmission_interface_loader.h>
+#include <diagnostic_updater/diagnostic_updater.h>
 #include "epos_hardware/utils.h"
 #include "epos_hardware/epos.h"
 
@@ -17,11 +18,13 @@ class EposManager {
 public:
   EposManager(hardware_interface::ActuatorStateInterface& asi,
 	      hardware_interface::VelocityActuatorInterface& avi,
-	      hardware_interface::PositionActuatorInterface& api);
+	      hardware_interface::PositionActuatorInterface& api,
+	      ros::NodeHandle& nh, ros::NodeHandle& pnh);
   void load(XmlRpc::XmlRpcValue& motors_xml);
   bool init();
   void read();
   void write();
+  void update_diagnostics();
   std::vector<boost::shared_ptr<Epos> > motors() { return motors_; };
 private:
   std::vector<boost::shared_ptr<Epos> > motors_;
@@ -30,6 +33,7 @@ private:
   hardware_interface::ActuatorStateInterface* asi_;
   hardware_interface::VelocityActuatorInterface* avi_;
   hardware_interface::PositionActuatorInterface* api_;
+  diagnostic_updater::Updater diagnostic_updater_;
 };
 
 }

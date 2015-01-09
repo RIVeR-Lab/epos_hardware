@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
     cm.update(now, now-last);
     robot.write();
     last = now;
+    robot.update_diagnostics();
     controller_rate.sleep();
   }
 

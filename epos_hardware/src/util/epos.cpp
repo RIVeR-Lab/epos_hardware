@@ -7,6 +7,7 @@ Epos::Epos(XmlRpc::XmlRpcValue& config_xml, EposFactory* epos_factory,
 	   hardware_interface::VelocityActuatorInterface& avi,
 	   hardware_interface::PositionActuatorInterface& api)
   : config_xml_(config_xml), epos_factory_(epos_factory),
+    has_init_(false),
     position_(0), velocity_(0), effort_(0), current_(0),
     position_cmd_(0), velocity_cmd_(0) {
   ROS_ASSERT(config_xml_.getType() == XmlRpc::XmlRpcValue::TypeStruct);
@@ -329,10 +330,11 @@ bool Epos::init() {
   if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
     return false;
 
+  has_init_ = true;
   return true;
 }
 void Epos::read() {
-  if(!node_handle_)
+  if(!has_init_)
     return;
 
   unsigned int error_code;
@@ -349,7 +351,7 @@ void Epos::read() {
 }
 
 void Epos::write() {
-  if(!node_handle_)
+  if(!has_init_)
     return;
 
   unsigned int error_code;
@@ -360,5 +362,90 @@ void Epos::write() {
     VCS_MoveToPosition(node_handle_->device_handle->ptr, node_handle_->node_id, (int)position_cmd_, true, true, &error_code);
   }
 }
+
+void Epos::buildStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
+  stat.add("Serial Number", serial_number_);
+
+  unsigned int error_code;
+  if(has_init_) {
+    unsigned short state;
+    std::string state_str;
+    if(VCS_GetState(node_handle_->device_handle->ptr, node_handle_->node_id, &state, &error_code)) {
+      if(state == ST_DISABLED) {
+	stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Disabled");
+	state_str = "Disabled";
+      }
+      else if(state == ST_ENABLED) {
+	stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Enabled");
+	state_str = "Enabled";
+      }
+      else if(state == ST_QUICKSTOP) {
+	stat.summary(diagnostic_msgs::DiagnosticStatus::WARN, "Quickstop");
+	state_str = "Quickstop";
+      }
+      else if(state == ST_FAULT) {
+	stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Fault");
+	state_str = "Fault";
+      }
+      else {
+	stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Unknown State");
+	state_str = "Unknown";
+      }
+      stat.add("State", state_str);
+    }
+    else {
+      std::string error_str;
+      if(GetErrorInfo(error_code, &error_str)) {
+	std::stringstream error_msg;
+	error_msg << "Could not read state: " << error_str;
+	stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, error_msg.str());
+      }
+      else {
+	stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Could not read state");
+      }
+      return;
+    }
+
+    unsigned char num_errors;
+    if(VCS_GetNbOfDeviceError(node_handle_->device_handle->ptr, node_handle_->node_id, &num_errors, &error_code)) {
+      for(int i = 1; i<= num_errors; ++i) {
+	unsigned int error_number;
+	if(VCS_GetDeviceErrorCode(node_handle_->device_handle->ptr, node_handle_->node_id, i, &error_number, &error_code)) {
+	  std::stringstream error_msg;
+	  error_msg << "EPOS Device Error: 0x" << std::hex << error_number;
+	  stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::ERROR, error_msg.str());
+	}
+	else {
+	  std::string error_str;
+	  if(GetErrorInfo(error_code, &error_str)) {
+	    std::stringstream error_msg;
+	    error_msg << "Could not read device error: " << error_str;
+	    stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::ERROR, error_msg.str());
+	  }
+	  else {
+	    stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::ERROR, "Could not read device error");
+	  }
+	}
+      }
+    }
+    else {
+      std::string error_str;
+      if(GetErrorInfo(error_code, &error_str)) {
+	std::stringstream error_msg;
+	error_msg << "Could not read device errors: " << error_str;
+	stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::ERROR, error_msg.str());
+      }
+      else {
+	stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::ERROR, "Could not read device errors");
+      }
+    }
+
+
+  }
+  else {
+    stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "EPOS not initialized");
+  }
+}
+
 
 }

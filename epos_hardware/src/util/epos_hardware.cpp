@@ -4,7 +4,7 @@
 namespace epos_hardware {
 
 EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh)
-  : epos_manager_(asi, avi, api) {
+  : epos_manager_(asi, avi, api, nh, pnh) {
   XmlRpc::XmlRpcValue motors_xml;
   if(pnh.getParam("motors", motors_xml)) {
     epos_manager_.load(motors_xml);
@@ -84,6 +84,10 @@ EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh)
 
 bool EposHardware::init() {
   return epos_manager_.init();
+}
+
+void EposHardware::update_diagnostics() {
+  epos_manager_.update_diagnostics();
 }
 
 void EposHardware::read() {

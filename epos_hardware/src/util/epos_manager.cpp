@@ -24,13 +24,14 @@ void EposManager::load(XmlRpc::XmlRpcValue& motors_xml) {
 }
 
 bool EposManager::init() {
+  bool success = true;
   BOOST_FOREACH(const boost::shared_ptr<Epos>& motor, motors_) {
     if(!motor->init()) {
       ROS_ERROR_STREAM("Could not configure motor: " << motor->name());
-      return false;
+      success = false;
     }
   }
-  return true;
+  return success;
 }
 
 void EposManager::update_diagnostics() {

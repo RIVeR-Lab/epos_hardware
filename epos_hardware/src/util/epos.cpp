@@ -347,7 +347,7 @@ void Epos::read() {
   position_ = position_raw;
   velocity_ = velocity_raw;
   effort_ = 0;
-  current_ = current_raw  * 1000.0; // mA -> A
+  current_ = current_raw  / 1000.0; // mA -> A
 }
 
 void Epos::write() {

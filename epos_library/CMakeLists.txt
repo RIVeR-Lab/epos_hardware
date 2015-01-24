@@ -3,11 +3,6 @@ project(epos_library)
 
 find_package(catkin REQUIRED)
 
-execute_process(
-  COMMAND ./download_library.sh
-  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/
-)
-
 # find the 32 or 64 bit libraries
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
   set(ARCH "x86_64")
@@ -17,6 +12,7 @@ endif()
 message(STATUS "Detected architecture: ${ARCH}")
 
 catkin_package(
+  INCLUDE_DIRS include
   LIBRARIES ftd2xx EposCmd
 )
 
@@ -24,15 +20,15 @@ catkin_package(
 ## Build ##
 ###########
 
-# Copy Library definitions header to devel space
-file(COPY "EPOS_Linux_Library/include/Definitions.h" DESTINATION "${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_INCLUDE_DESTINATION}")
+set(ftd2xx_LIBRARY ${PROJECT_SOURCE_DIR}/lib/${ARCH}/libftd2xx.so.1.1.12)
+set(EposCmd_LIBRARY ${PROJECT_SOURCE_DIR}/lib/${ARCH}/libEposCmd.so.5.0.1.0)
 
-add_library(ftd2xx ${FTD2XX_LIB})
-add_custom_command(TARGET ftd2xx POST_BUILD COMMAND cp ${PROJECT_SOURCE_DIR}/EPOS_Linux_Library/lib/${ARCH}/libftd2xx.so.1.1.12 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libftd2xx.so)
+add_library(ftd2xx SHARED ${ftd2xx_LIBRARY})
+add_custom_command(TARGET ftd2xx POST_BUILD COMMAND cp ${ftd2xx_LIBRARY} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libftd2xx.so)
 set_target_properties(ftd2xx PROPERTIES LINKER_LANGUAGE CXX)
 
-add_library(EposCmd ${EPOSCMD_LIB})
-add_custom_command(TARGET EposCmd POST_BUILD COMMAND cp ${PROJECT_SOURCE_DIR}/EPOS_Linux_Library/lib/${ARCH}/libEposCmd.so.5.0.1.0 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libEposCmd.so)
+add_library(EposCmd SHARED ${EposCmd_LIBRARY})
+add_custom_command(TARGET EposCmd POST_BUILD COMMAND cp ${EposCmd_LIBRARY} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libEposCmd.so)
 set_target_properties(EposCmd PROPERTIES LINKER_LANGUAGE CXX)
 
 #############
@@ -45,6 +41,8 @@ install(TARGETS ftd2xx EposCmd
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(FILES "${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_INCLUDE_DESTINATION}/Definitions.h"
+install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.h"
+  PATTERN ".svn" EXCLUDE
 )

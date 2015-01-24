@@ -20,6 +20,8 @@ catkin_package(
 ## Build ##
 ###########
 
+include_directories(include)
+
 set(ftd2xx_LIBRARY ${PROJECT_SOURCE_DIR}/lib/${ARCH}/libftd2xx.so.1.1.12)
 set(EposCmd_LIBRARY ${PROJECT_SOURCE_DIR}/lib/${ARCH}/libEposCmd.so.5.0.1.0)
 

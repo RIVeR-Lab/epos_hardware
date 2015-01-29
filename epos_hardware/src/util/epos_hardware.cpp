@@ -3,15 +3,8 @@
 
 namespace epos_hardware {
 
-EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh)
-  : epos_manager_(asi, avi, api, nh, pnh) {
-  XmlRpc::XmlRpcValue motors_xml;
-  if(pnh.getParam("motors", motors_xml)) {
-    epos_manager_.load(motors_xml);
-  }
-  else {
-    ROS_FATAL("No motors defined");
-  }
+EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh, const std::vector<std::string>& motor_names)
+  : epos_manager_(asi, avi, api, nh, pnh, motor_names) {
 
   // TODO throw exception or something
   try {
@@ -50,11 +43,11 @@ EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh)
     return;
   }
 
-  // build a list of all loaded motors
-  std::vector<std::string> motor_names;
+  // build a list of all loaded actuator names
+  std::vector<std::string> actuator_names;
   std::vector<boost::shared_ptr<Epos> > motors = epos_manager_.motors();
   BOOST_FOREACH(const boost::shared_ptr<Epos>& motor, motors) {
-    motor_names.push_back(motor->name());
+    actuator_names.push_back(motor->actuator_name());
   }
 
   // Load all transmissions that are for the loaded motors
@@ -62,7 +55,7 @@ EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh)
     bool found_some = false;
     bool found_all = true;
     BOOST_FOREACH(const transmission_interface::ActuatorInfo& actuator, info.actuators_) {
-      if(std::find(motor_names.begin(), motor_names.end(), actuator.name_) != motor_names.end())
+      if(std::find(actuator_names.begin(), actuator_names.end(), actuator.name_) != actuator_names.end())
 	found_some = true;
       else
 	found_all = false;
@@ -92,7 +85,8 @@ void EposHardware::update_diagnostics() {
 
 void EposHardware::read() {
   epos_manager_.read();
-  robot_transmissions.get<transmission_interface::ActuatorToJointStateInterface>()->propagate();
+  if(robot_transmissions.get<transmission_interface::ActuatorToJointStateInterface>())
+    robot_transmissions.get<transmission_interface::ActuatorToJointStateInterface>()->propagate();
 }
 
 void EposHardware::write() {

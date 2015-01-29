@@ -1,27 +1,53 @@
 #include "epos_hardware/epos.h"
+#include <boost/foreach.hpp>
 
 namespace epos_hardware {
 
-Epos::Epos(XmlRpc::XmlRpcValue& config_xml, EposFactory* epos_factory,
+Epos::Epos(ros::NodeHandle& config_nh, EposFactory* epos_factory,
 	   hardware_interface::ActuatorStateInterface& asi,
 	   hardware_interface::VelocityActuatorInterface& avi,
 	   hardware_interface::PositionActuatorInterface& api)
-  : config_xml_(config_xml), epos_factory_(epos_factory),
+  : config_nh_(config_nh), epos_factory_(epos_factory),
     has_init_(false),
     position_(0), velocity_(0), effort_(0), current_(0),
     position_cmd_(0), velocity_cmd_(0) {
-  ROS_ASSERT(config_xml_.getType() == XmlRpc::XmlRpcValue::TypeStruct);
 
-  ROS_ASSERT(config_xml_["name"].getType() == XmlRpc::XmlRpcValue::TypeString);
-  name_ = static_cast<std::string>(config_xml_["name"]);
+  valid_ = true;
+  if(!config_nh_.getParam("actuator_name", actuator_name_)) {
+    ROS_ERROR("You must specify an actuator name");
+    valid_ = false;
+  }
 
-  ROS_ASSERT(config_xml_["serial_number"].getType() == XmlRpc::XmlRpcValue::TypeString);
-  ROS_ASSERT(SerialNumberFromHex(static_cast<std::string>(config_xml_["serial_number"]), &serial_number_));
+  std::string serial_number_str;
+  if(!config_nh_.getParam("serial_number", serial_number_str)) {
+    ROS_ERROR("You must specify a serial number");
+    valid_ = false;
+  }
+  else {
+    ROS_ASSERT(SerialNumberFromHex(serial_number_str, &serial_number_));
+  }
 
-  ROS_ASSERT(config_xml_["operation_mode"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-  operation_mode_ = (OperationMode)static_cast<int>(config_xml_["operation_mode"]);
 
-  hardware_interface::ActuatorStateHandle state_handle(name_, &position_, &velocity_, &effort_);
+  std::string operation_mode_str;
+  if(!config_nh_.getParam("operation_mode", operation_mode_str)) {
+    ROS_ERROR("You must specify an operation mode");
+    valid_ = false;
+  }
+  else {
+    if(operation_mode_str == "profile_position") {
+      operation_mode_ = PROFILE_POSITION_MODE;
+    }
+    else if(operation_mode_str == "profile_velocity") {
+      operation_mode_ = PROFILE_VELOCITY_MODE;
+    }
+    else {
+      ROS_ERROR_STREAM(operation_mode_str << " is not a valid operation mode");
+      valid_ = false;
+    }
+  }
+
+  ROS_INFO_STREAM(actuator_name_);
+  hardware_interface::ActuatorStateHandle state_handle(actuator_name_, &position_, &velocity_, &effort_);
   asi.registerHandle(state_handle);
 
   hardware_interface::ActuatorHandle position_handle(state_handle, &position_cmd_);
@@ -29,277 +55,362 @@ Epos::Epos(XmlRpc::XmlRpcValue& config_xml, EposFactory* epos_factory,
   hardware_interface::ActuatorHandle velocity_handle(state_handle, &velocity_cmd_);
   avi.registerHandle(velocity_handle);
 }
+
 Epos::~Epos() {
   unsigned int error_code;
   if(node_handle_)
     VCS_SetDisableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
 }
 
-bool Epos::init() {
-  ROS_INFO_STREAM("Initializing: 0x" << std::hex << serial_number_);
-  unsigned int error_code;
-  node_handle_ = epos_factory_->CreateNodeHandle("EPOS2", "MAXON SERIAL V2", "USB", serial_number_, &error_code);
-  if(!node_handle_)
-    return false;
-  ROS_INFO_STREAM("Found Motor");
-
-  if(!VCS_SetProtocolStackSettings(node_handle_->device_handle->ptr, 1000000, 500, &error_code)){
+class ParameterSetLoader {
+public:
+  ParameterSetLoader(ros::NodeHandle nh) : nh_(nh){}
+  ParameterSetLoader(ros::NodeHandle parent_nh, const std::string& name) : nh_(parent_nh, name){}
+  template <class T> ParameterSetLoader& param(const std::string& name, T& value) {
+    if(nh_.getParam(name, value))
+      found_.push_back(name);
+    else
+      not_found_.push_back(name);
+    return *this;
+  }
+  bool all_or_none(bool& found_all) {
+    if(not_found_.size() == 0) {
+      found_all = true;
+      return true;
+    }
+    if(found_.size() == 0) {
+      found_all = false;
+      return true;
+    }
+    ROS_ERROR_STREAM("Expected all or none parameter set: (" << nh_.getNamespace() << ")");
+    BOOST_FOREACH(const std::string& name, found_) {
+      ROS_ERROR_STREAM("\tFound: " << nh_.resolveName(name));
+    }
+    BOOST_FOREACH(const std::string& name, not_found_) {
+      ROS_ERROR_STREAM("\tExpected: " << nh_.resolveName(name));
+    }
     return false;
   }
 
-  if(!VCS_SetDisableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
-    return false;
+private:
+  ros::NodeHandle nh_;
+  std::vector<std::string> found_;
+  std::vector<std::string> not_found_;
+};
+
+#define VCS(func, ...) do {						\
+ if(!VCS_##func(node_handle_->device_handle->ptr, node_handle_->node_id, __VA_ARGS__, &error_code)) { \
+   ROS_ERROR("Failed to "#func);					\
+   return false;							\
+ } 									\
+} while(0)
+
+#define VCS_FROM_SINGLE_PARAM_REQUIRED(nh, type, name, func) {		\
+      type name;							\
+      if(!nh.getParam(#name, name)) {					\
+	ROS_ERROR_STREAM(nh.resolveName(#name) << " not specified");	\
+	return false;							\
+      }									\
+      else {								\
+	VCS(func, name);						\
+      }									\
+      } while(0)
+#define VCS_FROM_SINGLE_PARAM_OPTIONAL(nh, type, name, func) do { \
+      type name;						  \
+      if(nh.getParam(#name, name)) {				  \
+	VCS(func, name);					  \
+      }								  \
+      } while(0)
 
 
-  if(!VCS_SetOperationMode(node_handle_->device_handle->ptr, node_handle_->node_id, operation_mode_, &error_code))
+bool Epos::init() {
+  if(!valid_) {
+    ROS_ERROR_STREAM("Not Initializing: 0x" << std::hex << serial_number_ << ", initial construction failed");
     return false;
+  }
+
+  ROS_INFO_STREAM("Initializing: 0x" << std::hex << serial_number_);
+  unsigned int error_code;
+  node_handle_ = epos_factory_->CreateNodeHandle("EPOS2", "MAXON SERIAL V2", "USB", serial_number_, &error_code);
+  ROS_INFO_STREAM("Found Motor");
+
+  if(!VCS_SetProtocolStackSettings(node_handle_->device_handle->ptr, 1000000, 500, &error_code)) {
+    ROS_ERROR("Failed to SetProtocolStackSettings");
+    return false;
+  }
+
+  if(!VCS_SetDisableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code)) {
+    ROS_ERROR("Failed to SetDisableState");
+    return false;
+  }
+
+  VCS(SetOperationMode, operation_mode_);
 
   ROS_INFO("Configuring Motor");
   {
-    XmlRpc::XmlRpcValue& motor_xml = config_xml_["motor"];
-    ROS_ASSERT(motor_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
+    ros::NodeHandle motor_nh(config_nh_, "motor");
 
-    ROS_ASSERT(motor_xml["type"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-    if(!VCS_SetMotorType(node_handle_->device_handle->ptr, node_handle_->node_id, static_cast<int>(motor_xml["type"]), &error_code))
-      return false;
+    VCS_FROM_SINGLE_PARAM_REQUIRED(motor_nh, int, type, SetMotorType);
 
-    if(motor_xml.hasMember("dc_motor")) {
-      XmlRpc::XmlRpcValue& dc_motor_xml = motor_xml["dc_motor"];
-      ROS_ASSERT(dc_motor_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(dc_motor_xml["nominal_current"].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-      ROS_ASSERT(dc_motor_xml["max_output_current"].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-      ROS_ASSERT(dc_motor_xml["thermal_time_constant"].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-      if(!VCS_SetDcMotorParameter(node_handle_->device_handle->ptr, node_handle_->node_id,
-				  1000 * static_cast<double>(dc_motor_xml["nominal_current"]), // A -> mA
-				  1000 * static_cast<double>(dc_motor_xml["max_output_current"]), // A -> mA
-				  10 * static_cast<double>(dc_motor_xml["thermal_time_constant"]), // s -> 100ms
-				  &error_code))
+    {
+      bool dc_motor;
+      double nominal_current;
+      double max_output_current;
+      double thermal_time_constant;
+      if(!ParameterSetLoader(motor_nh, "dc_motor")
+	 .param("nominal_current", nominal_current)
+	 .param("max_output_current", max_output_current)
+	 .param("thermal_time_constant", thermal_time_constant)
+	 .all_or_none(dc_motor))
 	return false;
+      if(dc_motor){
+	VCS(SetDcMotorParameter,
+	    1000 * nominal_current, // A -> mA
+	    1000 * max_output_current, // A -> mA
+	    10 * thermal_time_constant // s -> 100ms
+	    );
+      }
     }
 
-    if(motor_xml.hasMember("ec_motor")) {
-      XmlRpc::XmlRpcValue& ec_motor_xml = motor_xml["ec_motor"];
-      ROS_ASSERT(ec_motor_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(ec_motor_xml["nominal_current"].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-      ROS_ASSERT(ec_motor_xml["max_output_current"].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-      ROS_ASSERT(ec_motor_xml["thermal_time_constant"].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-      ROS_ASSERT(ec_motor_xml["number_of_pole_pairs"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetEcMotorParameter(node_handle_->device_handle->ptr, node_handle_->node_id,
-				  1000 * static_cast<double>(ec_motor_xml["nominal_current"]), // A -> mA
-				  1000 * static_cast<double>(ec_motor_xml["max_output_current"]), // A -> mA
-				  10 * static_cast<double>(ec_motor_xml["thermal_time_constant"]), // s -> 100ms
-				  static_cast<int>(ec_motor_xml["number_of_pole_pairs"]),
-				  &error_code))
+
+    {
+      bool ec_motor;
+      double nominal_current;
+      double max_output_current;
+      double thermal_time_constant;
+      int number_of_pole_pairs;
+      if(!ParameterSetLoader(motor_nh, "ec_motor")
+	 .param("nominal_current", nominal_current)
+	 .param("max_output_current", max_output_current)
+	 .param("thermal_time_constant", thermal_time_constant)
+	 .param("number_of_pole_pairs", number_of_pole_pairs)
+	 .all_or_none(ec_motor))
 	return false;
+
+      if(ec_motor) {
+	VCS(SetEcMotorParameter,
+	    1000 * nominal_current, // A -> mA
+	    1000 * max_output_current, // A -> mA
+	    10 * thermal_time_constant, // s -> 100ms
+	    number_of_pole_pairs);
+      }
     }
   }
 
   ROS_INFO("Configuring Sensor");
   {
-    XmlRpc::XmlRpcValue& sensor_xml = config_xml_["sensor"];
-    ROS_ASSERT(sensor_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
+    ros::NodeHandle sensor_nh(config_nh_, "sensor");
 
-    ROS_ASSERT(sensor_xml["type"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-    if(!VCS_SetSensorType(node_handle_->device_handle->ptr, node_handle_->node_id, static_cast<int>(sensor_xml["type"]), &error_code))
-      return false;
+    VCS_FROM_SINGLE_PARAM_REQUIRED(sensor_nh, int, type, SetSensorType);
 
-    if(sensor_xml.hasMember("incremental_encoder")) {
-      XmlRpc::XmlRpcValue& inc_encoder_xml = sensor_xml["incremental_encoder"];
-      ROS_ASSERT(inc_encoder_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(inc_encoder_xml["resolution"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(inc_encoder_xml["inverted_polarity"].getType() == XmlRpc::XmlRpcValue::TypeBoolean);
-      if(!VCS_SetIncEncoderParameter(node_handle_->device_handle->ptr, node_handle_->node_id,
-				     static_cast<int>(inc_encoder_xml["resolution"]),
-				     static_cast<bool>(inc_encoder_xml["inverted_polarity"]),
-				     &error_code))
+    {
+      bool incremental_encoder;
+      int resolution;
+      bool inverted_polarity;
+
+      if(!ParameterSetLoader(sensor_nh, "incremental_encoder")
+	 .param("resolution", resolution)
+	 .param("inverted_polarity", inverted_polarity)
+	 .all_or_none(incremental_encoder))
 	return false;
+      if(incremental_encoder) {
+	VCS(SetIncEncoderParameter, resolution, inverted_polarity);
+      }
     }
 
-    if(sensor_xml.hasMember("hall_sensor")) {
-      XmlRpc::XmlRpcValue& hall_sensor_xml = sensor_xml["hall_sensor"];
-      ROS_ASSERT(hall_sensor_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(hall_sensor_xml["inverted_polarity"].getType() == XmlRpc::XmlRpcValue::TypeBoolean);
-      if(!VCS_SetHallSensorParameter(node_handle_->device_handle->ptr, node_handle_->node_id,
-				     static_cast<bool>(hall_sensor_xml["inverted_polarity"]),
-				     &error_code))
+    {
+      bool hall_sensor;
+      bool inverted_polarity;
+
+      if(!ParameterSetLoader(sensor_nh, "hall_sensor")
+	 .param("inverted_polarity", inverted_polarity)
+	 .all_or_none(hall_sensor))
 	return false;
+      if(hall_sensor) {
+	VCS(SetHallSensorParameter, inverted_polarity);
+      }
     }
 
-    if(sensor_xml.hasMember("ssi_absolute_encoder")) {
-      XmlRpc::XmlRpcValue& ssi_absolute_encoder_xml = sensor_xml["ssi_absolute_encoder"];
-      ROS_ASSERT(ssi_absolute_encoder_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(ssi_absolute_encoder_xml["data_rate"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(ssi_absolute_encoder_xml["number_of_multiturn_bits"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(ssi_absolute_encoder_xml["number_of_singleturn_bits"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(ssi_absolute_encoder_xml["inverted_polarity"].getType() == XmlRpc::XmlRpcValue::TypeBoolean);
-      if(!VCS_SetSsiAbsEncoderParameter(node_handle_->device_handle->ptr, node_handle_->node_id,
-					static_cast<int>(ssi_absolute_encoder_xml["data_rate"]),
-					static_cast<int>(ssi_absolute_encoder_xml["number_of_multiturn_bits"]),
-					static_cast<int>(ssi_absolute_encoder_xml["number_of_singleturn_bits"]),
-					static_cast<bool>(ssi_absolute_encoder_xml["inverted_polarity"]),
-					&error_code))
+    {
+      bool ssi_absolute_encoder;
+      int data_rate;
+      int number_of_multiturn_bits;
+      int number_of_singleturn_bits;
+      bool inverted_polarity;
+
+      if(!ParameterSetLoader(sensor_nh, "ssi_absolute_encoder")
+	 .param("data_rate", data_rate)
+	 .param("number_of_multiturn_bits", number_of_multiturn_bits)
+	 .param("number_of_singleturn_bits", number_of_singleturn_bits)
+	 .param("inverted_polarity", inverted_polarity)
+	 .all_or_none(ssi_absolute_encoder))
 	return false;
+      if(ssi_absolute_encoder) {
+	VCS(SetSsiAbsEncoderParameter,
+	    data_rate,
+	    number_of_multiturn_bits,
+	    number_of_singleturn_bits,
+	    inverted_polarity);
+      }
     }
 
   }
 
-  if(config_xml_.hasMember("safety")) {
+  {
     ROS_INFO("Configuring Safety");
-    XmlRpc::XmlRpcValue& safety_xml = config_xml_["safety"];
-    ROS_ASSERT(safety_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-    if(safety_xml.hasMember("max_following_error")) {
-      ROS_ASSERT(safety_xml["max_following_error"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetMaxFollowingError(node_handle_->device_handle->ptr, node_handle_->node_id,
-				  static_cast<int>(safety_xml["max_following_error"]),
-				  &error_code))
+    ros::NodeHandle safety_nh(config_nh_, "safety");
+
+    VCS_FROM_SINGLE_PARAM_OPTIONAL(safety_nh, int, max_following_error, SetMaxFollowingError);
+    VCS_FROM_SINGLE_PARAM_OPTIONAL(safety_nh, int, max_profile_velocity, SetMaxProfileVelocity);
+    VCS_FROM_SINGLE_PARAM_OPTIONAL(safety_nh, int, max_acceleration, SetMaxAcceleration);
+  }
+
+  {
+    ROS_INFO("Configuring Position Regulator");
+    ros::NodeHandle position_regulator_nh(config_nh_, "position_regulator");
+    {
+      bool position_regulator_gain;
+      int p, i, d;
+      if(!ParameterSetLoader(position_regulator_nh, "gain")
+	 .param("p", p)
+	 .param("i", i)
+	 .param("d", d)
+	 .all_or_none(position_regulator_gain))
 	return false;
+      if(position_regulator_gain){
+	VCS(SetPositionRegulatorGain, p, i, d);
+      }
     }
 
-    if(safety_xml.hasMember("max_profile_velocity")) {
-      ROS_ASSERT(safety_xml["max_profile_velocity"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetMaxProfileVelocity(node_handle_->device_handle->ptr, node_handle_->node_id,
-				  static_cast<int>(safety_xml["max_profile_velocity"]),
-				  &error_code))
+    {
+      bool position_regulator_feed_forward;
+      int velocity, acceleration;
+      if(!ParameterSetLoader(position_regulator_nh, "feed_forward")
+	 .param("velocity", velocity)
+	 .param("acceleration", acceleration)
+	 .all_or_none(position_regulator_feed_forward))
 	return false;
-    }
-
-    if(safety_xml.hasMember("max_acceleration")) {
-      ROS_ASSERT(safety_xml["max_acceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetMaxAcceleration(node_handle_->device_handle->ptr, node_handle_->node_id,
-				  static_cast<int>(safety_xml["max_acceleration"]),
-				  &error_code))
-	return false;
+      if(position_regulator_feed_forward){
+	VCS(SetPositionRegulatorFeedForward, velocity, acceleration);
+      }
     }
   }
 
-  if(config_xml_.hasMember("position_regulator")) {
-    ROS_INFO("Position Regulator");
-    XmlRpc::XmlRpcValue& position_xml = config_xml_["position_regulator"];
-    ROS_ASSERT(position_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-    if(position_xml.hasMember("gain")) {
-      XmlRpc::XmlRpcValue& gain_xml = position_xml["gain"];
-      ROS_ASSERT(gain_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(gain_xml["p"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(gain_xml["i"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(gain_xml["d"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetPositionRegulatorGain(node_handle_->device_handle->ptr, node_handle_->node_id,
-				       static_cast<int>(gain_xml["p"]),
-				       static_cast<int>(gain_xml["i"]),
-				       static_cast<int>(gain_xml["d"]),
-				       &error_code))
+  {
+    ROS_INFO("Configuring Velocity Regulator");
+    ros::NodeHandle velocity_regulator_nh(config_nh_, "velocity_regulator");
+    {
+      bool velocity_regulator_gain;
+      int p, i;
+      if(!ParameterSetLoader(velocity_regulator_nh, "gain")
+	 .param("p", p)
+	 .param("i", i)
+	 .all_or_none(velocity_regulator_gain))
 	return false;
+      if(velocity_regulator_gain){
+	VCS(SetVelocityRegulatorGain, p, i);
+      }
     }
 
-    if(position_xml.hasMember("feed_forward")) {
-      XmlRpc::XmlRpcValue& feed_forward_xml = position_xml["feed_forward"];
-      ROS_ASSERT(feed_forward_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(feed_forward_xml["velocity"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(feed_forward_xml["acceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetPositionRegulatorFeedForward(node_handle_->device_handle->ptr, node_handle_->node_id,
-					      static_cast<int>(feed_forward_xml["velocity"]),
-					      static_cast<int>(feed_forward_xml["acceleration"]),
-					      &error_code))
+    {
+      bool velocity_regulator_feed_forward;
+      int velocity, acceleration;
+      if(!ParameterSetLoader(velocity_regulator_nh, "feed_forward")
+	 .param("velocity", velocity)
+	 .param("acceleration", acceleration)
+	 .all_or_none(velocity_regulator_feed_forward))
 	return false;
-    }
-
-  }
-
-  if(config_xml_.hasMember("velocity_regulator")) {
-    ROS_INFO("Velocity Regulator");
-    XmlRpc::XmlRpcValue& velocity_xml = config_xml_["velocity_regulator"];
-    ROS_ASSERT(velocity_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-    if(velocity_xml.hasMember("gain")) {
-      XmlRpc::XmlRpcValue& gain_xml = velocity_xml["gain"];
-      ROS_ASSERT(gain_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(gain_xml["p"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(gain_xml["i"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetVelocityRegulatorGain(node_handle_->device_handle->ptr, node_handle_->node_id,
-				       static_cast<int>(gain_xml["p"]),
-				       static_cast<int>(gain_xml["i"]),
-				       &error_code))
-	return false;
-    }
-
-    if(velocity_xml.hasMember("feed_forward")) {
-      XmlRpc::XmlRpcValue& feed_forward_xml = velocity_xml["feed_forward"];
-      ROS_ASSERT(feed_forward_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(feed_forward_xml["velocity"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(feed_forward_xml["acceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetVelocityRegulatorFeedForward(node_handle_->device_handle->ptr, node_handle_->node_id,
-					      static_cast<int>(feed_forward_xml["velocity"]),
-					      static_cast<int>(feed_forward_xml["acceleration"]),
-					      &error_code))
-	return false;
-    }
-
-  }
-
-  if(config_xml_.hasMember("current_regulator")) {
-    ROS_INFO("Current Regulator");
-    XmlRpc::XmlRpcValue& current_xml = config_xml_["current_regulator"];
-    ROS_ASSERT(current_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-    if(current_xml.hasMember("gain")) {
-      XmlRpc::XmlRpcValue& gain_xml = current_xml["gain"];
-      ROS_ASSERT(gain_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(gain_xml["p"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(gain_xml["i"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      if(!VCS_SetCurrentRegulatorGain(node_handle_->device_handle->ptr, node_handle_->node_id,
-				      static_cast<int>(gain_xml["p"]),
-				      static_cast<int>(gain_xml["i"]),
-				      &error_code))
-	return false;
-    }
-  }
-
-  if(config_xml_.hasMember("position_profile")) {
-    ROS_INFO("Position Profile");
-    XmlRpc::XmlRpcValue& position_xml = config_xml_["position_profile"];
-    ROS_ASSERT(position_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-    ROS_ASSERT(position_xml["velocity"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-    ROS_ASSERT(position_xml["acceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-    ROS_ASSERT(position_xml["deceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-    if(!VCS_SetPositionProfile(node_handle_->device_handle->ptr, node_handle_->node_id,
-			       static_cast<int>(position_xml["velocity"]),
-			       static_cast<int>(position_xml["acceleration"]),
-			       static_cast<int>(position_xml["deceleration"]),
-			       &error_code))
-      return false;
-    if(position_xml.hasMember("window")) {
-      XmlRpc::XmlRpcValue& window_xml = position_xml["window"];
-      ROS_ASSERT(window_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(window_xml["window"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(window_xml["time"].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-      if(!VCS_EnablePositionWindow(node_handle_->device_handle->ptr, node_handle_->node_id,
-				   static_cast<int>(window_xml["window"]),
-				   1000 * static_cast<double>(window_xml["time"]), // s -> ms
-				   &error_code))
-	return false;
+      if(velocity_regulator_feed_forward){
+	VCS(SetVelocityRegulatorFeedForward, velocity, acceleration);
+      }
     }
   }
 
 
-
-  if(config_xml_.hasMember("velocity_profile")) {
-    ROS_INFO("Velocity Profile");
-    XmlRpc::XmlRpcValue& velocity_xml = config_xml_["velocity_profile"];
-    ROS_ASSERT(velocity_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-    ROS_ASSERT(velocity_xml["acceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-    ROS_ASSERT(velocity_xml["deceleration"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-    if(!VCS_SetVelocityProfile(node_handle_->device_handle->ptr, node_handle_->node_id,
-				    static_cast<int>(velocity_xml["acceleration"]),
-				    static_cast<int>(velocity_xml["deceleration"]),
-				    &error_code))
-      return false;
-    if(velocity_xml.hasMember("window")) {
-      XmlRpc::XmlRpcValue& window_xml = velocity_xml["window"];
-      ROS_ASSERT(window_xml.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-      ROS_ASSERT(window_xml["window"].getType() == XmlRpc::XmlRpcValue::TypeInt);
-      ROS_ASSERT(window_xml["time"].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-      if(!VCS_EnableVelocityWindow(node_handle_->device_handle->ptr, node_handle_->node_id,
-				   static_cast<int>(window_xml["window"]),
-				   1000 * static_cast<double>(window_xml["time"]), // s -> ms
-				   &error_code))
+  {
+    ROS_INFO("Configuring Current Regulator");
+    ros::NodeHandle current_regulator_nh(config_nh_, "current_regulator");
+    {
+      bool current_regulator_gain;
+      int p, i;
+      if(!ParameterSetLoader(current_regulator_nh, "gain")
+	 .param("p", p)
+	 .param("i", i)
+	 .all_or_none(current_regulator_gain))
 	return false;
+      if(current_regulator_gain){
+	VCS(SetCurrentRegulatorGain, p, i);
+      }
+    }
+  }
+
+
+  {
+    ROS_INFO("Configuring Position Profile");
+    ros::NodeHandle position_profile_nh(config_nh_, "position_profile");
+    {
+      bool position_profile;
+      int velocity, acceleration, deceleration;
+      if(!ParameterSetLoader(position_profile_nh)
+	 .param("velocity", velocity)
+	 .param("acceleration", acceleration)
+	 .param("deceleration", deceleration)
+	 .all_or_none(position_profile))
+	return false;
+      if(position_profile){
+	VCS(SetPositionProfile, velocity, acceleration, deceleration);
+      }
+    }
+
+    {
+      bool position_profile_window;
+      int window;
+      double time;
+      if(!ParameterSetLoader(position_profile_nh, "window")
+	 .param("window", window)
+	 .param("time", time)
+	 .all_or_none(position_profile_window))
+	return false;
+      if(position_profile_window){
+	VCS(EnablePositionWindow,
+	    window,
+	    1000 * time // s -> ms
+	    );
+      }
+    }
+  }
+
+  {
+    ROS_INFO("Configuring Velocity Profile");
+    ros::NodeHandle velocity_profile_nh(config_nh_, "velocity_profile");
+    {
+      bool velocity_profile;
+      int acceleration, deceleration;
+      if(!ParameterSetLoader(velocity_profile_nh)
+	 .param("acceleration", acceleration)
+	 .param("deceleration", deceleration)
+	 .all_or_none(velocity_profile))
+	return false;
+      if(velocity_profile){
+	VCS(SetVelocityProfile, acceleration, deceleration);
+      }
+    }
+
+    {
+      bool velocity_profile_window;
+      int window;
+      double time;
+      if(!ParameterSetLoader(velocity_profile_nh, "window")
+	 .param("window", window)
+	 .param("time", time)
+	 .all_or_none(velocity_profile_window))
+	return false;
+      if(velocity_profile_window){
+	VCS(EnableVelocityWindow,
+	    window,
+	    1000 * time // s -> ms
+	    );
+      }
     }
   }
 
@@ -316,14 +427,16 @@ bool Epos::init() {
     ROS_WARN_STREAM("EPOS Device Error: 0x" << std::hex << error_number);
   }
 
-  if(config_xml_.hasMember("clear_faults")) {
-    ROS_ASSERT(config_xml_["clear_faults"].getType() == XmlRpc::XmlRpcValue::TypeBoolean);
-    if(static_cast<bool>(config_xml_["clear_faults"])){
-      if(!VCS_ClearFault(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
-	return false;
-      else
-	ROS_INFO_STREAM("Cleared faults");
+  bool clear_faults = false;
+  config_nh_.getParam("clear_faults", clear_faults);
+  if(clear_faults) {
+    ROS_INFO("Clearing faults");
+    if(!VCS_ClearFault(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code)) {
+      ROS_ERROR("Could not clear faults");
+      return false;
     }
+    else
+      ROS_INFO("Cleared faults");
   }
 
   ROS_INFO_STREAM("Enabling Motor");
@@ -333,6 +446,7 @@ bool Epos::init() {
   has_init_ = true;
   return true;
 }
+
 void Epos::read() {
   if(!has_init_)
     return;

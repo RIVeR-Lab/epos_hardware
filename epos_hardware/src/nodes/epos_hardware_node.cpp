@@ -2,14 +2,18 @@
 #include <ros/spinner.h>
 #include "epos_hardware/epos_hardware.h"
 #include <controller_manager/controller_manager.h>
-
+#include <vector>
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "epos_velocity_hardware");
   ros::NodeHandle nh;
   ros::NodeHandle pnh("~");
 
-  epos_hardware::EposHardware robot(nh, pnh);
+  std::vector<std::string> motor_names;
+  for(int i = 0; i < argc-1; ++i) {
+    motor_names.push_back(argv[i+1]);
+  }
+  epos_hardware::EposHardware robot(nh, pnh, motor_names);
   controller_manager::ControllerManager cm(&robot, nh);
 
   ros::AsyncSpinner spinner(1);

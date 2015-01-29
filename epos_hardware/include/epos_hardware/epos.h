@@ -16,7 +16,7 @@ public:
     PROFILE_VELOCITY_MODE = 3
   } OperationMode;
 
-  Epos(XmlRpc::XmlRpcValue& config_xml, EposFactory* epos_factory,
+  Epos(ros::NodeHandle& config_nh, EposFactory* epos_factory,
        hardware_interface::ActuatorStateInterface& asi,
        hardware_interface::VelocityActuatorInterface& avi,
        hardware_interface::PositionActuatorInterface& api);
@@ -25,14 +25,17 @@ public:
   void read();
   void write();
   std::string name() { return name_; }
+  std::string actuator_name() { return actuator_name_; }
   void buildStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
 private:
-  XmlRpc::XmlRpcValue config_xml_;
+  ros::NodeHandle config_nh_;
   EposFactory* epos_factory_;
   std::string name_;
+  std::string actuator_name_;
   uint64_t serial_number_;
   OperationMode operation_mode_;
   NodeHandlePtr node_handle_;
+  bool valid_;
   bool has_init_;
 
   double position_;

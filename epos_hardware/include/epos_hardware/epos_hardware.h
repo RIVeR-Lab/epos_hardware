@@ -16,20 +16,20 @@ namespace epos_hardware {
 
 class EposHardware : public hardware_interface::RobotHW {
 public:
-  EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh);
+  EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh, const std::vector<std::string>& motor_names);
   bool init();
   void read();
   void write();
   void update_diagnostics();
 private:
+  hardware_interface::ActuatorStateInterface asi;
+  hardware_interface::VelocityActuatorInterface avi;
+  hardware_interface::PositionActuatorInterface api;
+
   EposManager epos_manager_;
 
   transmission_interface::RobotTransmissions robot_transmissions;
   boost::scoped_ptr<transmission_interface::TransmissionInterfaceLoader> transmission_loader;
-
-  hardware_interface::ActuatorStateInterface asi;
-  hardware_interface::VelocityActuatorInterface avi;
-  hardware_interface::PositionActuatorInterface api;
 };
 
 }

@@ -19,8 +19,8 @@ public:
   EposManager(hardware_interface::ActuatorStateInterface& asi,
 	      hardware_interface::VelocityActuatorInterface& avi,
 	      hardware_interface::PositionActuatorInterface& api,
-	      ros::NodeHandle& nh, ros::NodeHandle& pnh);
-  void load(XmlRpc::XmlRpcValue& motors_xml);
+	      ros::NodeHandle& nh, ros::NodeHandle& pnh,
+	      const std::vector<std::string>& motor_names);
   bool init();
   void read();
   void write();

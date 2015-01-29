@@ -8,15 +8,12 @@ EposManager::EposManager(hardware_interface::ActuatorStateInterface& asi,
 			 hardware_interface::PositionActuatorInterface& api,
 			 ros::NodeHandle& nh, ros::NodeHandle& pnh,
 			 const std::vector<std::string>& motor_names)
-  : asi_(&asi), avi_(&avi), api_(&api), diagnostic_updater_(nh, pnh) {
-  diagnostic_updater_.setHardwareID("EPOS");
-
+  : asi_(&asi), avi_(&avi), api_(&api) {
   BOOST_FOREACH(const std::string& motor_name, motor_names) {
     ROS_INFO_STREAM("Loading EPOS: " << motor_name);
     ros::NodeHandle motor_config_nh(pnh, motor_name);
-    boost::shared_ptr<Epos> motor(new Epos(motor_config_nh, &epos_factory, *asi_, *avi_, *api_));
+    boost::shared_ptr<Epos> motor(new Epos(motor_name, nh, motor_config_nh, &epos_factory, *asi_, *avi_, *api_));
     motors_.push_back(motor);
-    diagnostic_updater_.add(motor->name(), boost::bind(&Epos::buildStatus, motor, _1));
   }
 }
 
@@ -33,7 +30,9 @@ bool EposManager::init() {
 }
 
 void EposManager::update_diagnostics() {
-  diagnostic_updater_.update();
+  BOOST_FOREACH(const boost::shared_ptr<Epos>& motor, motors_) {
+    motor->update_diagnostics();
+  }
 }
 
 void EposManager::read() {

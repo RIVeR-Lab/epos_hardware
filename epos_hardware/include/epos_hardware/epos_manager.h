@@ -33,7 +33,6 @@ private:
   hardware_interface::ActuatorStateInterface* asi_;
   hardware_interface::VelocityActuatorInterface* avi_;
   hardware_interface::PositionActuatorInterface* api_;
-  diagnostic_updater::Updater diagnostic_updater_;
 };
 
 }

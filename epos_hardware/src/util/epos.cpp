@@ -3,11 +3,13 @@
 
 namespace epos_hardware {
 
-Epos::Epos(ros::NodeHandle& config_nh, EposFactory* epos_factory,
+Epos::Epos(const std::string& name,
+	   ros::NodeHandle& nh, ros::NodeHandle& config_nh,
+	   EposFactory* epos_factory,
 	   hardware_interface::ActuatorStateInterface& asi,
 	   hardware_interface::VelocityActuatorInterface& avi,
 	   hardware_interface::PositionActuatorInterface& api)
-  : config_nh_(config_nh), epos_factory_(epos_factory),
+  : name_(name), config_nh_(config_nh), diagnostic_updater_(nh, config_nh), epos_factory_(epos_factory),
     has_init_(false),
     position_(0), velocity_(0), effort_(0), current_(0),
     position_cmd_(0), velocity_cmd_(0) {
@@ -54,6 +56,11 @@ Epos::Epos(ros::NodeHandle& config_nh, EposFactory* epos_factory,
   api.registerHandle(position_handle);
   hardware_interface::ActuatorHandle velocity_handle(state_handle, &velocity_cmd_);
   avi.registerHandle(velocity_handle);
+
+  diagnostic_updater_.setHardwareID(serial_number_str);
+  std::stringstream motor_diagnostic_name_ss;
+  motor_diagnostic_name_ss << name << ": " << "Motor";
+  diagnostic_updater_.add(motor_diagnostic_name_ss.str(), boost::bind(&Epos::buildMotorStatus, this, _1));
 }
 
 Epos::~Epos() {
@@ -477,9 +484,11 @@ void Epos::write() {
   }
 }
 
-void Epos::buildStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
-  stat.add("Serial Number", serial_number_);
-
+void Epos::update_diagnostics() {
+  diagnostic_updater_.update();
+}
+void Epos::buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
+  stat.add("Actuator Name", actuator_name_);
   unsigned int error_code;
   if(has_init_) {
     unsigned short state;

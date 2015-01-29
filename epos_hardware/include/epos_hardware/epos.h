@@ -16,7 +16,9 @@ public:
     PROFILE_VELOCITY_MODE = 3
   } OperationMode;
 
-  Epos(ros::NodeHandle& config_nh, EposFactory* epos_factory,
+  Epos(const std::string& name,
+       ros::NodeHandle& nh, ros::NodeHandle& config_nh,
+       EposFactory* epos_factory,
        hardware_interface::ActuatorStateInterface& asi,
        hardware_interface::VelocityActuatorInterface& avi,
        hardware_interface::PositionActuatorInterface& api);
@@ -26,9 +28,10 @@ public:
   void write();
   std::string name() { return name_; }
   std::string actuator_name() { return actuator_name_; }
-  void buildStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
+  void update_diagnostics();
 private:
   ros::NodeHandle config_nh_;
+  diagnostic_updater::Updater diagnostic_updater_;
   EposFactory* epos_factory_;
   std::string name_;
   std::string actuator_name_;
@@ -45,6 +48,8 @@ private:
 
   double position_cmd_;
   double velocity_cmd_;
+
+  void buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
 };
 
 }

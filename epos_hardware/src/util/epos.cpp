@@ -139,6 +139,10 @@ bool Epos::init() {
   ROS_INFO_STREAM("Initializing: 0x" << std::hex << serial_number_);
   unsigned int error_code;
   node_handle_ = epos_factory_->CreateNodeHandle("EPOS2", "MAXON SERIAL V2", "USB", serial_number_, &error_code);
+  if(!node_handle_) {
+    ROS_ERROR("Could not find motor");
+    return false;
+  }
   ROS_INFO_STREAM("Found Motor");
 
   if(!VCS_SetProtocolStackSettings(node_handle_->device_handle->ptr, 1000000, 500, &error_code)) {

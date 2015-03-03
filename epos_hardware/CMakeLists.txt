@@ -82,7 +82,13 @@ install(PROGRAMS
   install_udev_rules
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+install(FILES 90-ftd2xx.rules
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
 
+install(DIRECTORY launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
 
 # Mark libraries and nodes for installation
 install(TARGETS epos_library_utils epos_manager epos_hardware list_devices get_state epos_hardware_node
@@ -97,4 +103,3 @@ install(DIRECTORY include/${PROJECT_NAME}/
   FILES_MATCHING PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
 )
-

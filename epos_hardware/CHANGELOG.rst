@@ -2,8 +2,8 @@
 Changelog for package epos_hardware
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.2 (2015-03-06)
+------------------
 * Fixed so that udev rules file and example launch files are actually installed
 * Contributors: Mitchell Wills
 

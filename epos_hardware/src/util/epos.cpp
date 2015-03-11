@@ -483,6 +483,8 @@ void Epos::write() {
 
   unsigned int error_code;
   if(operation_mode_ == PROFILE_VELOCITY_MODE) {
+    if(isnan(velocity_cmd_))
+      return;
     int cmd = (int)velocity_cmd_;
     if(max_profile_velocity_ >= 0) {
       if(cmd < -max_profile_velocity_)
@@ -494,6 +496,8 @@ void Epos::write() {
     VCS_MoveWithVelocity(node_handle_->device_handle->ptr, node_handle_->node_id, cmd, &error_code);
   }
   else if(operation_mode_ == PROFILE_POSITION_MODE) {
+    if(isnan(position_cmd_))
+      return;
     VCS_MoveToPosition(node_handle_->device_handle->ptr, node_handle_->node_id, (int)position_cmd_, true, true, &error_code);
   }
 }

@@ -105,29 +105,27 @@ private:
   std::vector<std::string> not_found_;
 };
 
-#define VCS(func, ...) do {						\
- if(!VCS_##func(node_handle_->device_handle->ptr, node_handle_->node_id, __VA_ARGS__, &error_code)) { \
-   ROS_ERROR("Failed to "#func);					\
-   return false;							\
- } 									\
-} while(0)
+#define VCS(func, ...)							\
+  if(!VCS_##func(node_handle_->device_handle->ptr, node_handle_->node_id, __VA_ARGS__, &error_code)) { \
+    ROS_ERROR("Failed to "#func);					\
+    return false;							\
+  }
 
-#define VCS_FROM_SINGLE_PARAM_REQUIRED(nh, type, name, func) {		\
-      type name;							\
-      if(!nh.getParam(#name, name)) {					\
-	ROS_ERROR_STREAM(nh.resolveName(#name) << " not specified");	\
-	return false;							\
-      }									\
-      else {								\
-	VCS(func, name);						\
-      }									\
-      } while(0)
-#define VCS_FROM_SINGLE_PARAM_OPTIONAL(nh, type, name, func) do { \
-      type name;						  \
-      if(nh.getParam(#name, name)) {				  \
-	VCS(func, name);					  \
-      }								  \
-      } while(0)
+#define VCS_FROM_SINGLE_PARAM_REQUIRED(nh, type, name, func)		\
+  type name;								\
+  if(!nh.getParam(#name, name)) {					\
+    ROS_ERROR_STREAM(nh.resolveName(#name) << " not specified");	\
+    return false;							\
+  }									\
+  else {								\
+    VCS(func, name);							\
+  }
+#define VCS_FROM_SINGLE_PARAM_OPTIONAL(nh, type, name, func)		\
+  bool name##_set;							\
+  type name;								\
+  if(name##_set = nh.getParam(#name, name)) {				\
+    VCS(func, name);							\
+  }									\
 
 
 bool Epos::init() {
@@ -274,6 +272,10 @@ bool Epos::init() {
     VCS_FROM_SINGLE_PARAM_OPTIONAL(safety_nh, int, max_following_error, SetMaxFollowingError);
     VCS_FROM_SINGLE_PARAM_OPTIONAL(safety_nh, int, max_profile_velocity, SetMaxProfileVelocity);
     VCS_FROM_SINGLE_PARAM_OPTIONAL(safety_nh, int, max_acceleration, SetMaxAcceleration);
+    if(max_profile_velocity_set)
+      max_profile_velocity_ = max_profile_velocity;
+    else
+      max_profile_velocity_ = -1;
   }
 
   {
@@ -481,7 +483,15 @@ void Epos::write() {
 
   unsigned int error_code;
   if(operation_mode_ == PROFILE_VELOCITY_MODE) {
-    VCS_MoveWithVelocity(node_handle_->device_handle->ptr, node_handle_->node_id, (int)velocity_cmd_, &error_code);
+    int cmd = (int)velocity_cmd_;
+    if(max_profile_velocity_ >= 0) {
+      if(cmd < -max_profile_velocity_)
+	cmd = -max_profile_velocity_;
+      if(cmd > max_profile_velocity_)
+	cmd = max_profile_velocity_;
+    }
+
+    VCS_MoveWithVelocity(node_handle_->device_handle->ptr, node_handle_->node_id, cmd, &error_code);
   }
   else if(operation_mode_ == PROFILE_POSITION_MODE) {
     VCS_MoveToPosition(node_handle_->device_handle->ptr, node_handle_->node_id, (int)position_cmd_, true, true, &error_code);

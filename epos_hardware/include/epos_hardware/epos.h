@@ -48,6 +48,7 @@ private:
 
   double position_cmd_;
   double velocity_cmd_;
+  int max_profile_velocity_;
 
   void buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
 };

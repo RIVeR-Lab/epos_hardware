@@ -176,9 +176,9 @@ bool Epos::init() {
 	return false;
       if(dc_motor){
 	VCS(SetDcMotorParameter,
-	    1000 * nominal_current, // A -> mA
-	    1000 * max_output_current, // A -> mA
-	    10 * thermal_time_constant // s -> 100ms
+	    (int)(1000 * nominal_current), // A -> mA
+	    (int)(1000 * max_output_current), // A -> mA
+	    (int)(10 * thermal_time_constant) // s -> 100ms
 	    );
       }
     }
@@ -200,9 +200,9 @@ bool Epos::init() {
 
       if(ec_motor) {
 	VCS(SetEcMotorParameter,
-	    1000 * nominal_current, // A -> mA
-	    1000 * max_output_current, // A -> mA
-	    10 * thermal_time_constant, // s -> 100ms
+	    (int)(1000 * nominal_current), // A -> mA
+	    (int)(1000 * max_output_current), // A -> mA
+	    (int)(10 * thermal_time_constant), // s -> 100ms
 	    number_of_pole_pairs);
       }
     }
@@ -385,7 +385,7 @@ bool Epos::init() {
       if(position_profile_window){
 	VCS(EnablePositionWindow,
 	    window,
-	    1000 * time // s -> ms
+	    (int)(1000 * time) // s -> ms
 	    );
       }
     }
@@ -419,7 +419,7 @@ bool Epos::init() {
       if(velocity_profile_window){
 	VCS(EnableVelocityWindow,
 	    window,
-	    1000 * time // s -> ms
+	    (int)(1000 * time) // s -> ms
 	    );
       }
     }

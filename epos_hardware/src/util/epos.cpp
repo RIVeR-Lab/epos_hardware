@@ -442,14 +442,27 @@ bool Epos::init() {
 
   bool clear_faults = false;
   config_nh_.getParam("clear_faults", clear_faults);
-  if(clear_faults) {
-    ROS_INFO("Clearing faults");
-    if(!VCS_ClearFault(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code)) {
-      ROS_ERROR("Could not clear faults");
+  if(num_errors > 0) {
+    if(clear_faults) {
+      ROS_INFO("Clearing faults");
+      if(!VCS_ClearFault(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code)) {
+	ROS_ERROR("Could not clear faults");
+	return false;
+      }
+      else
+	ROS_INFO("Cleared faults");
+    }
+    else {
+      ROS_ERROR("Not clearing faults, but faults exist");
       return false;
     }
-    else
-      ROS_INFO("Cleared faults");
+  }
+
+  if(!VCS_GetNbOfDeviceError(node_handle_->device_handle->ptr, node_handle_->node_id, &num_errors, &error_code))
+    return false;
+  if(num_errors > 0) {
+    ROS_ERROR("Not all faults were cleared");
+    return false;
   }
 
   ROS_INFO_STREAM("Enabling Motor");

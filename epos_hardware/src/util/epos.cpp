@@ -161,6 +161,7 @@ bool Epos::init() {
   ROS_INFO("Configuring Motor");
   {
     nominal_current_ = 0;
+    max_current_ = 0;
     ros::NodeHandle motor_nh(config_nh_, "motor");
 
     VCS_FROM_SINGLE_PARAM_REQUIRED(motor_nh, int, type, SetMotorType);
@@ -178,6 +179,7 @@ bool Epos::init() {
 	return false;
       if(dc_motor){
 	nominal_current_ = nominal_current;
+	max_current_ = max_output_current;
 	VCS(SetDcMotorParameter,
 	    (int)(1000 * nominal_current), // A -> mA
 	    (int)(1000 * max_output_current), // A -> mA
@@ -203,6 +205,7 @@ bool Epos::init() {
 
       if(ec_motor) {
 	nominal_current_ = nominal_current;
+	max_current_ = max_output_current;
 	VCS(SetEcMotorParameter,
 	    (int)(1000 * nominal_current), // A -> mA
 	    (int)(1000 * max_output_current), // A -> mA
@@ -633,6 +636,8 @@ void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &s
     operation_mode_str = "Unknown Mode";
   }
   stat.add("Operation Mode", operation_mode_str);
+  stat.add("Nominal Current", boost::lexical_cast<std::string>(nominal_current_) + " A");
+  stat.add("Max Current", boost::lexical_cast<std::string>(max_current_) + " A");
 
   unsigned int error_code;
   if(has_init_) {

@@ -52,6 +52,7 @@ private:
   bool halt_velocity_;
   double torque_constant_;
   double nominal_current_;
+  double max_current_;
 
   void buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
   void buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);

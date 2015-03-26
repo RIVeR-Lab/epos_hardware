@@ -440,8 +440,8 @@ bool Epos::init() {
     ROS_WARN_STREAM("EPOS Device Error: 0x" << std::hex << error_number);
   }
 
-  bool clear_faults = false;
-  config_nh_.getParam("clear_faults", clear_faults);
+  bool clear_faults;
+  config_nh_.param<bool>("clear_faults", clear_faults, false);
   if(num_errors > 0) {
     if(clear_faults) {
       ROS_INFO("Clearing faults");
@@ -464,6 +464,8 @@ bool Epos::init() {
     ROS_ERROR("Not all faults were cleared");
     return false;
   }
+
+  config_nh_.param<bool>("halt_velocity", halt_velocity_, false);
 
   ROS_INFO_STREAM("Enabling Motor");
   if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
@@ -506,7 +508,12 @@ void Epos::write() {
 	cmd = max_profile_velocity_;
     }
 
-    VCS_MoveWithVelocity(node_handle_->device_handle->ptr, node_handle_->node_id, cmd, &error_code);
+    if(cmd == 0 && halt_velocity_) {
+      VCS_HaltVelocityMovement(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
+    }
+    else {
+      VCS_MoveWithVelocity(node_handle_->device_handle->ptr, node_handle_->node_id, cmd, &error_code);
+    }
   }
   else if(operation_mode_ == PROFILE_POSITION_MODE) {
     if(isnan(position_cmd_))

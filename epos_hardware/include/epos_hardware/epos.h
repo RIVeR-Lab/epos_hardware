@@ -50,6 +50,7 @@ private:
   double velocity_cmd_;
   int max_profile_velocity_;
   bool halt_velocity_;
+  double torque_constant_;
 
   void buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
 };

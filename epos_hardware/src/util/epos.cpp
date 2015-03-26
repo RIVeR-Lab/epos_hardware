@@ -467,6 +467,12 @@ bool Epos::init() {
 
   config_nh_.param<bool>("halt_velocity", halt_velocity_, false);
 
+  if(!config_nh_.getParam("torque_constant", torque_constant_)) {
+    ROS_WARN("No torque constant specified, you can supply one using the 'torque_constant' parameter");
+    torque_constant_ = 1.0;
+  }
+
+
   ROS_INFO_STREAM("Enabling Motor");
   if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
     return false;
@@ -488,8 +494,8 @@ void Epos::read() {
   VCS_GetCurrentIs(node_handle_->device_handle->ptr, node_handle_->node_id, &current_raw, &error_code);
   position_ = position_raw;
   velocity_ = velocity_raw;
-  effort_ = 0;
   current_ = current_raw  / 1000.0; // mA -> A
+  effort_ = current_ * torque_constant_;
 }
 
 void Epos::write() {

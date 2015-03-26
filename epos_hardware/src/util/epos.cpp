@@ -160,6 +160,7 @@ bool Epos::init() {
 
   ROS_INFO("Configuring Motor");
   {
+    nominal_current_ = 0;
     ros::NodeHandle motor_nh(config_nh_, "motor");
 
     VCS_FROM_SINGLE_PARAM_REQUIRED(motor_nh, int, type, SetMotorType);
@@ -176,6 +177,7 @@ bool Epos::init() {
 	 .all_or_none(dc_motor))
 	return false;
       if(dc_motor){
+	nominal_current_ = nominal_current;
 	VCS(SetDcMotorParameter,
 	    (int)(1000 * nominal_current), // A -> mA
 	    (int)(1000 * max_output_current), // A -> mA
@@ -200,6 +202,7 @@ bool Epos::init() {
 	return false;
 
       if(ec_motor) {
+	nominal_current_ = nominal_current;
 	VCS(SetEcMotorParameter,
 	    (int)(1000 * nominal_current), // A -> mA
 	    (int)(1000 * max_output_current), // A -> mA
@@ -475,7 +478,6 @@ bool Epos::init() {
     torque_constant_ = 1.0;
   }
 
-
   ROS_INFO_STREAM("Enabling Motor");
   if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
     return false;
@@ -618,8 +620,6 @@ void Epos::buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
 }
 
 void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
-  stat.add("Operation Mode", operation_mode_str);
-
   std::string operation_mode_str;
   if(operation_mode_ == PROFILE_POSITION_MODE) {
     operation_mode_str = "Profile Position Mode";
@@ -632,6 +632,7 @@ void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &s
   else {
     operation_mode_str = "Unknown Mode";
   }
+  stat.add("Operation Mode", operation_mode_str);
 
   unsigned int error_code;
   if(has_init_) {
@@ -640,6 +641,9 @@ void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &s
     stat.add("Torque", boost::lexical_cast<std::string>(effort_) + " Nm");
     stat.add("Current", boost::lexical_cast<std::string>(current_) + " A");
     stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "EPOS operating in " + operation_mode_str);
+    if(nominal_current_ > 0 && std::abs(current_) > nominal_current_) {
+      stat.summaryf(diagnostic_msgs::DiagnosticStatus::WARN, "Nominal Current Exceeded (Current: %f A)", current_);
+    }
   }
   else {
     stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "EPOS not initialized");

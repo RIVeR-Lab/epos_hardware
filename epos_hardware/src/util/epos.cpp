@@ -61,6 +61,9 @@ Epos::Epos(const std::string& name,
   std::stringstream motor_diagnostic_name_ss;
   motor_diagnostic_name_ss << name << ": " << "Motor";
   diagnostic_updater_.add(motor_diagnostic_name_ss.str(), boost::bind(&Epos::buildMotorStatus, this, _1));
+  std::stringstream motor_output_diagnostic_name_ss;
+  motor_output_diagnostic_name_ss << name << ": " << "Motor Output";
+  diagnostic_updater_.add(motor_output_diagnostic_name_ss.str(), boost::bind(&Epos::buildMotorOutputStatus, this, _1));
 }
 
 Epos::~Epos() {
@@ -608,6 +611,35 @@ void Epos::buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
     }
 
 
+  }
+  else {
+    stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "EPOS not initialized");
+  }
+}
+
+void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
+  stat.add("Operation Mode", operation_mode_str);
+
+  std::string operation_mode_str;
+  if(operation_mode_ == PROFILE_POSITION_MODE) {
+    operation_mode_str = "Profile Position Mode";
+    stat.add("Commanded Position", boost::lexical_cast<std::string>(position_cmd_) + " rotations");
+  }
+  else if(operation_mode_ == PROFILE_VELOCITY_MODE) {
+    operation_mode_str = "Profile Velocity Mode";
+    stat.add("Commanded Velocity", boost::lexical_cast<std::string>(velocity_cmd_) + " rpm");
+  }
+  else {
+    operation_mode_str = "Unknown Mode";
+  }
+
+  unsigned int error_code;
+  if(has_init_) {
+    stat.add("Position", boost::lexical_cast<std::string>(position_) + " rotations");
+    stat.add("Velocity", boost::lexical_cast<std::string>(velocity_) + " rpm");
+    stat.add("Torque", boost::lexical_cast<std::string>(effort_) + " Nm");
+    stat.add("Current", boost::lexical_cast<std::string>(current_) + " A");
+    stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "EPOS operating in " + operation_mode_str);
   }
   else {
     stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "EPOS not initialized");

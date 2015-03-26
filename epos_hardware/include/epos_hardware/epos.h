@@ -53,6 +53,7 @@ private:
   double torque_constant_;
 
   void buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
+  void buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
 };
 
 }

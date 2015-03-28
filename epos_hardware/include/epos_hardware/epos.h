@@ -9,6 +9,16 @@
 
 namespace epos_hardware {
 
+#define STATUSWORD(b, v) ((v >> b) & 1)
+#define ENABLE (2)
+#define FAULT (3)
+#define VOLTAGE_ENABLED (4)
+#define QUICKSTOP (5)
+#define WARNING (7)
+#define TARGET_REACHED (10)
+#define CURRENT_LIMIT_ACTIVE (11)
+
+
 class Epos {
 public:
   typedef enum {
@@ -45,6 +55,7 @@ private:
   double velocity_;
   double effort_;
   double current_;
+  uint16_t statusword_;
 
   double position_cmd_;
   double velocity_cmd_;

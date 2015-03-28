@@ -11,7 +11,7 @@ Epos::Epos(const std::string& name,
 	   hardware_interface::PositionActuatorInterface& api)
   : name_(name), config_nh_(config_nh), diagnostic_updater_(nh, config_nh), epos_factory_(epos_factory),
     has_init_(false),
-    position_(0), velocity_(0), effort_(0), current_(0),
+    position_(0), velocity_(0), effort_(0), current_(0), statusword_(0),
     position_cmd_(0), velocity_cmd_(0) {
 
   valid_ = true;
@@ -523,6 +523,11 @@ void Epos::read() {
     return;
 
   unsigned int error_code;
+
+  // Read statusword
+  unsigned int bytes_read;
+  VCS_GetObject(node_handle_->device_handle->ptr, node_handle_->node_id, 0x6041, 0x00, &statusword_, 2, &bytes_read, &error_code);
+
   int position_raw;
   int velocity_raw;
   short current_raw;
@@ -533,6 +538,7 @@ void Epos::read() {
   velocity_ = velocity_raw;
   current_ = current_raw  / 1000.0; // mA -> A
   effort_ = current_ * torque_constant_;
+
 }
 
 void Epos::write() {
@@ -572,43 +578,30 @@ void Epos::buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
   stat.add("Actuator Name", actuator_name_);
   unsigned int error_code;
   if(has_init_) {
-    unsigned short state;
-    std::string state_str;
-    if(VCS_GetState(node_handle_->device_handle->ptr, node_handle_->node_id, &state, &error_code)) {
-      if(state == ST_DISABLED) {
-	stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Disabled");
-	state_str = "Disabled";
-      }
-      else if(state == ST_ENABLED) {
-	stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Enabled");
-	state_str = "Enabled";
-      }
-      else if(state == ST_QUICKSTOP) {
-	stat.summary(diagnostic_msgs::DiagnosticStatus::WARN, "Quickstop");
-	state_str = "Quickstop";
-      }
-      else if(state == ST_FAULT) {
-	stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Fault");
-	state_str = "Fault";
-      }
-      else {
-	stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Unknown State");
-	state_str = "Unknown";
-      }
-      stat.add("State", state_str);
+    if(STATUSWORD(ENABLE, statusword_)) {
+      stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Enabled");
     }
     else {
-      std::string error_str;
-      if(GetErrorInfo(error_code, &error_str)) {
-	std::stringstream error_msg;
-	error_msg << "Could not read state: " << error_str;
-	stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, error_msg.str());
-      }
-      else {
-	stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Could not read state");
-      }
-      return;
+      stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Disabled");
     }
+
+    if(STATUSWORD(QUICKSTOP, statusword_)) {
+      stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::WARN, "Quickstop");
+    }
+
+    if(STATUSWORD(WARNING, statusword_)) {
+      stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::WARN, "Warning");
+    }
+
+    if(STATUSWORD(FAULT, statusword_)) {
+      stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::ERROR, "Fault");
+    }
+
+    stat.add<bool>("Enabled", STATUSWORD(ENABLE, statusword_));
+    stat.add<bool>("Fault", STATUSWORD(FAULT, statusword_));
+    stat.add<bool>("Voltage Enabled", STATUSWORD(VOLTAGE_ENABLED, statusword_));
+    stat.add<bool>("Quickstop", STATUSWORD(QUICKSTOP, statusword_));
+    stat.add<bool>("Warning", STATUSWORD(WARNING, statusword_));
 
     unsigned char num_errors;
     if(VCS_GetNbOfDeviceError(node_handle_->device_handle->ptr, node_handle_->node_id, &num_errors, &error_code)) {
@@ -674,10 +667,20 @@ void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &s
     stat.add("Velocity", boost::lexical_cast<std::string>(velocity_) + " rpm");
     stat.add("Torque", boost::lexical_cast<std::string>(effort_) + " Nm");
     stat.add("Current", boost::lexical_cast<std::string>(current_) + " A");
+
+
+    stat.add<bool>("Target Reached", STATUSWORD(TARGET_REACHED, statusword_));
+    stat.add<bool>("Current Limit Active", STATUSWORD(CURRENT_LIMIT_ACTIVE, statusword_));
+
+
     stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "EPOS operating in " + operation_mode_str);
+    if(STATUSWORD(CURRENT_LIMIT_ACTIVE, statusword_))
+      stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::WARN, "Current Limit Active");
     if(nominal_current_ > 0 && std::abs(current_) > nominal_current_) {
-      stat.summaryf(diagnostic_msgs::DiagnosticStatus::WARN, "Nominal Current Exceeded (Current: %f A)", current_);
+      stat.mergeSummaryf(diagnostic_msgs::DiagnosticStatus::WARN, "Nominal Current Exceeded (Current: %f A)", current_);
     }
+
+
   }
   else {
     stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "EPOS not initialized");

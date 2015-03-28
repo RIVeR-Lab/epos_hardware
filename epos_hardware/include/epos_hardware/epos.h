@@ -10,6 +10,8 @@
 namespace epos_hardware {
 
 #define STATUSWORD(b, v) ((v >> b) & 1)
+#define READY_TO_SWITCH_ON (0)
+#define SWITCHED_ON (1)
 #define ENABLE (2)
 #define FAULT (3)
 #define VOLTAGE_ENABLED (4)

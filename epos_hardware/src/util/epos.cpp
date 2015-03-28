@@ -578,14 +578,16 @@ void Epos::buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
   stat.add("Actuator Name", actuator_name_);
   unsigned int error_code;
   if(has_init_) {
-    if(STATUSWORD(ENABLE, statusword_)) {
+    bool enabled = STATUSWORD(READY_TO_SWITCH_ON, statusword_) && STATUSWORD(SWITCHED_ON, statusword_) && STATUSWORD(ENABLE, statusword_);
+    if(enabled) {
       stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Enabled");
     }
     else {
       stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Disabled");
     }
 
-    if(STATUSWORD(QUICKSTOP, statusword_)) {
+    // Quickstop is enabled when bit is unset (only read quickstop when enabled)
+    if(!STATUSWORD(QUICKSTOP, statusword_) && enabled) {
       stat.mergeSummary(diagnostic_msgs::DiagnosticStatus::WARN, "Quickstop");
     }
 

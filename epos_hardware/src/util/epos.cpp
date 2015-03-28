@@ -158,6 +158,35 @@ bool Epos::init() {
 
   VCS(SetOperationMode, operation_mode_);
 
+  std::string fault_reaction_str;
+#define SET_FAULT_REACTION_OPTION(val)					\
+  do {									\
+    unsigned int length = 2;						\
+    unsigned int bytes_written;						\
+    int16_t data = val;							\
+    VCS(SetObject, 0x605E, 0x00, &data, length, &bytes_written);	\
+  } while(true)
+
+  if(config_nh_.getParam("fault_reaction_option", fault_reaction_str)) {
+    if(fault_reaction_str == "signal_only") {
+      SET_FAULT_REACTION_OPTION(-1);
+    }
+    else if(fault_reaction_str == "disable_drive") {
+      SET_FAULT_REACTION_OPTION(0);
+    }
+    else if(fault_reaction_str == "slow_down_ramp") {
+      SET_FAULT_REACTION_OPTION(1);
+    }
+    else if(fault_reaction_str == "slow_down_quickstop") {
+      SET_FAULT_REACTION_OPTION(2);
+    }
+    else {
+      ROS_ERROR_STREAM(fault_reaction_str << " is not a valid fault reaction option");
+      return false;
+    }
+  }
+
+
   ROS_INFO("Configuring Motor");
   {
     nominal_current_ = 0;

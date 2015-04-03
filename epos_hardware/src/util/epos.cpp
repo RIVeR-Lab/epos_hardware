@@ -8,7 +8,8 @@ Epos::Epos(const std::string& name,
 	   EposFactory* epos_factory,
 	   hardware_interface::ActuatorStateInterface& asi,
 	   hardware_interface::VelocityActuatorInterface& avi,
-	   hardware_interface::PositionActuatorInterface& api)
+	   hardware_interface::PositionActuatorInterface& api,
+	   hardware_interface::EffortActuatorInterface& aei)
   : name_(name), config_nh_(config_nh), diagnostic_updater_(nh, config_nh), epos_factory_(epos_factory),
     has_init_(false),
     position_(0), velocity_(0), effort_(0), current_(0), statusword_(0),
@@ -42,6 +43,9 @@ Epos::Epos(const std::string& name,
     else if(operation_mode_str == "profile_velocity") {
       operation_mode_ = PROFILE_VELOCITY_MODE;
     }
+    else if(operation_mode_str == "current") {
+      operation_mode_ = CURRENT_MODE;
+    }
     else {
       ROS_ERROR_STREAM(operation_mode_str << " is not a valid operation mode");
       valid_ = false;
@@ -56,6 +60,8 @@ Epos::Epos(const std::string& name,
   api.registerHandle(position_handle);
   hardware_interface::ActuatorHandle velocity_handle(state_handle, &velocity_cmd_);
   avi.registerHandle(velocity_handle);
+  hardware_interface::ActuatorHandle effort_handle(state_handle, &torque_cmd_);
+  aei.registerHandle(effort_handle);
 
   diagnostic_updater_.setHardwareID(serial_number_str);
   std::stringstream motor_diagnostic_name_ss;
@@ -114,6 +120,15 @@ private:
     return false;							\
   }
 
+#define VCS_SET_OBJECT(index, subindex, data, length)			\
+  do {									\
+    unsigned int bytes_written;						\
+    if(!VCS_SetObject(node_handle_->device_handle->ptr, node_handle_->node_id, index, subindex, data, length, &bytes_written, &error_code)) { \
+      ROS_ERROR("Failed to SetObject(%#06x, %#04x, len: %d)", index, subindex, length); \
+      return false;							\
+    }									\
+  } while(true)
+
 #define VCS_FROM_SINGLE_PARAM_REQUIRED(nh, type, name, func)		\
   type name;								\
   if(!nh.getParam(#name, name)) {					\
@@ -161,10 +176,8 @@ bool Epos::init() {
   std::string fault_reaction_str;
 #define SET_FAULT_REACTION_OPTION(val)					\
   do {									\
-    unsigned int length = 2;						\
-    unsigned int bytes_written;						\
     int16_t data = val;							\
-    VCS(SetObject, 0x605E, 0x00, &data, length, &bytes_written);	\
+    VCS_SET_OBJECT(0x605E, 0x00, &data, 2);				\
   } while(true)
 
   if(config_nh_.getParam("fault_reaction_option", fault_reaction_str)) {
@@ -186,6 +199,10 @@ bool Epos::init() {
     }
   }
 
+  if(!config_nh_.getParam("torque_constant", torque_constant_)) {
+    ROS_WARN("No torque constant specified, you can supply one using the 'torque_constant' parameter");
+    torque_constant_ = 1.0;
+  }
 
   ROS_INFO("Configuring Motor");
   {
@@ -241,6 +258,12 @@ bool Epos::init() {
 	    (int)(10 * thermal_time_constant), // s -> 100ms
 	    number_of_pole_pairs);
       }
+    }
+
+    double max_speed;
+    if(motor_nh.getParam("max_speed", max_speed)) {
+      uint32_t data = max_speed;
+      VCS_SET_OBJECT(0x6410, 0x04, &data, 2);
     }
   }
 
@@ -505,11 +528,6 @@ bool Epos::init() {
 
   config_nh_.param<bool>("halt_velocity", halt_velocity_, false);
 
-  if(!config_nh_.getParam("torque_constant", torque_constant_)) {
-    ROS_WARN("No torque constant specified, you can supply one using the 'torque_constant' parameter");
-    torque_constant_ = 1.0;
-  }
-
   ROS_INFO_STREAM("Enabling Motor");
   if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
     return false;
@@ -537,7 +555,7 @@ void Epos::read() {
   position_ = position_raw;
   velocity_ = velocity_raw;
   current_ = current_raw  / 1000.0; // mA -> A
-  effort_ = current_ * torque_constant_;
+  effort_ = currentToTorque(current_);
 
 }
 
@@ -568,6 +586,11 @@ void Epos::write() {
     if(isnan(position_cmd_))
       return;
     VCS_MoveToPosition(node_handle_->device_handle->ptr, node_handle_->node_id, (int)position_cmd_, true, true, &error_code);
+  }
+  else if(operation_mode_ == CURRENT_MODE) {
+    if(isnan(torque_cmd_))
+      return;
+    VCS_SetCurrentMust(node_handle_->device_handle->ptr, node_handle_->node_id, (int)torqueToCurrent(torque_cmd_), &error_code);
   }
 }
 
@@ -655,6 +678,11 @@ void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &s
   else if(operation_mode_ == PROFILE_VELOCITY_MODE) {
     operation_mode_str = "Profile Velocity Mode";
     stat.add("Commanded Velocity", boost::lexical_cast<std::string>(velocity_cmd_) + " rpm");
+  }
+  else if(operation_mode_ == CURRENT_MODE) {
+    operation_mode_str = "Current Mode";
+    stat.add("Commanded Torque", boost::lexical_cast<std::string>(torque_cmd_) + " Nm");
+    stat.add("Commanded Current", boost::lexical_cast<std::string>(torqueToCurrent(torque_cmd_)) + " A");
   }
   else {
     operation_mode_str = "Unknown Mode";

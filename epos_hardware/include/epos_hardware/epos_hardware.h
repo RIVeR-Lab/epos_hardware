@@ -25,6 +25,7 @@ private:
   hardware_interface::ActuatorStateInterface asi;
   hardware_interface::VelocityActuatorInterface avi;
   hardware_interface::PositionActuatorInterface api;
+  hardware_interface::EffortActuatorInterface aei;
 
   EposManager epos_manager_;
 

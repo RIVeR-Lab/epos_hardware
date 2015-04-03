@@ -19,6 +19,7 @@ public:
   EposManager(hardware_interface::ActuatorStateInterface& asi,
 	      hardware_interface::VelocityActuatorInterface& avi,
 	      hardware_interface::PositionActuatorInterface& api,
+	      hardware_interface::EffortActuatorInterface& aei,
 	      ros::NodeHandle& nh, ros::NodeHandle& pnh,
 	      const std::vector<std::string>& motor_names);
   bool init();
@@ -33,6 +34,7 @@ private:
   hardware_interface::ActuatorStateInterface* asi_;
   hardware_interface::VelocityActuatorInterface* avi_;
   hardware_interface::PositionActuatorInterface* api_;
+  hardware_interface::EffortActuatorInterface* aei_;
 };
 
 }

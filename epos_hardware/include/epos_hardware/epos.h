@@ -25,7 +25,8 @@ class Epos {
 public:
   typedef enum {
     PROFILE_POSITION_MODE = 1,
-    PROFILE_VELOCITY_MODE = 3
+    PROFILE_VELOCITY_MODE = 3,
+    CURRENT_MODE = -3
   } OperationMode;
 
   Epos(const std::string& name,
@@ -33,7 +34,8 @@ public:
        EposFactory* epos_factory,
        hardware_interface::ActuatorStateInterface& asi,
        hardware_interface::VelocityActuatorInterface& avi,
-       hardware_interface::PositionActuatorInterface& api);
+       hardware_interface::PositionActuatorInterface& api,
+       hardware_interface::EffortActuatorInterface& aei);
   ~Epos();
   bool init();
   void read();
@@ -61,6 +63,7 @@ private:
 
   double position_cmd_;
   double velocity_cmd_;
+  double torque_cmd_;
   int max_profile_velocity_;
   bool halt_velocity_;
   double torque_constant_;
@@ -69,6 +72,9 @@ private:
 
   void buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
   void buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &stat);
+
+  double currentToTorque(double current) { return current * torque_constant_; }
+  double torqueToCurrent(double torque) { return torque / torque_constant_; }
 };
 
 }

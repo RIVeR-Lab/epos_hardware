@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>epos_library</name>
-  <version>0.0.2</version>
+  <version>0.0.3</version>
   <description>A catkin package that provides the EPOS Command Library</description>
 
   <maintainer email="mwills@wpi.edu">Mitchell Wills</maintainer>

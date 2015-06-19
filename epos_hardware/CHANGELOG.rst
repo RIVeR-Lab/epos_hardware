@@ -2,8 +2,8 @@
 Changelog for package epos_hardware
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.3 (2015-06-18)
+------------------
 * Fixed quickstop diagnostics status
 * Added diagnostics information from statusword
 * Added ability to set fault recovery option

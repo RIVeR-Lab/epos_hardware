@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>epos_hardware</name>
-  <version>0.0.2</version>
+  <version>0.0.3</version>
   <description>A wrapper around the EPOS Command Library to provide easy integration with ROS control</description>
 
   <maintainer email="mwills@wpi.edu">Mitchell Wills</maintainer>

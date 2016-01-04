@@ -47,6 +47,7 @@ private:
   EposFactory* epos_factory_;
   std::string name_;
   std::string actuator_name_;
+  std::string comm_protocol_;
   uint64_t serial_number_;
   OperationMode operation_mode_;
   NodeHandlePtr node_handle_;

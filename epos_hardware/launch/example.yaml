@@ -4,6 +4,7 @@
 my_joint_actuator:
   actuator_name: 'test_joint_actuator'
   serial_number: '662080000026'
+  communication_protocol: 'RS232' # or USB
   operation_mode: 'profile_velocity'
   clear_faults: true
 

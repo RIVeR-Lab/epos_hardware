@@ -20,6 +20,11 @@ Epos::Epos(const std::string& name,
     valid_ = false;
   }
 
+  if(!config_nh_.getParam("communication_protocol", comm_protocol_)) {
+    ROS_WARN("You haven't specified which communication protocol you want to use\nWill be USB by default");
+    valid_ = false;
+  }
+
   std::string serial_number_str;
   if(!config_nh_.getParam("serial_number", serial_number_str)) {
     ROS_ERROR("You must specify a serial number");
@@ -139,16 +144,36 @@ bool Epos::init() {
 
   ROS_INFO_STREAM("Initializing: 0x" << std::hex << serial_number_);
   unsigned int error_code;
-  node_handle_ = epos_factory_->CreateNodeHandle("EPOS2", "MAXON SERIAL V2", "USB", serial_number_, &error_code);
-  if(!node_handle_) {
-    ROS_ERROR("Could not find motor");
-    return false;
+  
+  if((comm_protocol_ == "USB") || (comm_protocol_ == "")){
+    node_handle_ = epos_factory_->CreateNodeHandle("EPOS2", "MAXON SERIAL V2", "USB", serial_number_, &error_code);
+    if(!node_handle_) {
+      ROS_ERROR("Could not find motor");
+      return false;
+    }
+    ROS_INFO_STREAM("Found Motor");
+    if(!VCS_SetProtocolStackSettings(node_handle_->device_handle->ptr, 1000000, 500, &error_code)) {
+      ROS_ERROR("Failed to SetProtocolStackSettings");
+      return false;
+    }
   }
-  ROS_INFO_STREAM("Found Motor");
-
-  if(!VCS_SetProtocolStackSettings(node_handle_->device_handle->ptr, 1000000, 500, &error_code)) {
-    ROS_ERROR("Failed to SetProtocolStackSettings");
-    return false;
+  else{
+    if(comm_protocol_ == "RS232"){
+      node_handle_ = epos_factory_->CreateNodeHandle("EPOS2", "MAXON_RS232", "RS232", serial_number_, &error_code);
+      if(!node_handle_) {
+        ROS_ERROR("Could not find motor");
+        return false;
+      }
+      ROS_INFO_STREAM("Found Motor");
+      if(!VCS_SetProtocolStackSettings(node_handle_->device_handle->ptr, 115200, 500, &error_code)) {
+        ROS_ERROR("Failed to SetProtocolStackSettings");
+        return false;
+      }
+    }
+    else{
+      ROS_ERROR_STREAM("Specified communication protocol was : "<<comm_protocol_<<" . Must be either USB or RS232");
+      return false;
+    }
   }
 
   if(!VCS_SetDisableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code)) {

@@ -95,6 +95,8 @@ void EposHardware::write() {
     robot_transmissions.get<transmission_interface::JointToActuatorVelocityInterface>()->propagate();
   if(robot_transmissions.get<transmission_interface::JointToActuatorPositionInterface>())
     robot_transmissions.get<transmission_interface::JointToActuatorPositionInterface>()->propagate();
+  if(robot_transmissions.get<transmission_interface::JointToActuatorEffortInterface>())
+    robot_transmissions.get<transmission_interface::JointToActuatorEffortInterface>()->propagate();
   epos_manager_.write();
 }
 

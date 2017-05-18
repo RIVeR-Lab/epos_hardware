@@ -7,6 +7,8 @@
 #include <hardware_interface/robot_hw.h>
 #include <transmission_interface/robot_transmissions.h>
 #include <transmission_interface/transmission_interface_loader.h>
+#include <boost/scoped_array.hpp>
+#include <boost/scoped_ptr.hpp>
 #include "epos_hardware/utils.h"
 #include "epos_hardware/epos.h"
 #include "epos_hardware/epos_manager.h"

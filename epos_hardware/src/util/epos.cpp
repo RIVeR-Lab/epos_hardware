@@ -156,8 +156,6 @@ bool Epos::init() {
     return false;
   }
 
-  //VCS(SetOperationMode, operation_mode_);
-
   std::string fault_reaction_str;
 #define SET_FAULT_REACTION_OPTION(val)					\
   do {									\
@@ -502,7 +500,7 @@ bool Epos::init() {
 
         int position_raw;
         VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position_raw, &error_code);
-        std::cout << "position_raw: " << position_raw << std::endl;
+
         if(homing == 1 && position_raw == 1){
             VCS(SetHomingParameter,
 	            homing_acceleration,
@@ -572,11 +570,6 @@ bool Epos::init() {
     ROS_WARN("No torque constant specified, you can supply one using the 'torque_constant' parameter");
     torque_constant_ = 1.0;
   }
-
-  //ROS_INFO_STREAM("Enabling Motor");
-  //if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
-  // return false;
-
 
     has_init_ = true;
     return true;

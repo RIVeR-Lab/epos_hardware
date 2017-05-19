@@ -97,4 +97,7 @@ void EposHardware::write() {
   epos_manager_.write();
 }
 
+bool EposHardware::stop_homing() {
+  return epos_manager_.stop_homing();
+}
 }

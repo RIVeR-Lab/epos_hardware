@@ -156,7 +156,7 @@ bool Epos::init() {
     return false;
   }
 
-  VCS(SetOperationMode, operation_mode_);
+  //VCS(SetOperationMode, operation_mode_);
 
   std::string fault_reaction_str;
 #define SET_FAULT_REACTION_OPTION(val)					\
@@ -465,7 +465,70 @@ bool Epos::init() {
     }
   }
 
+  ROS_INFO_STREAM("Enabling Motor");
+  if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
+    return false;
 
+  {
+    ROS_INFO("Configuring homing mode");
+
+    VCS(SetOperationMode, HOMING_MODE);
+
+    ROS_INFO("Getting Homing Parameters");
+    ros::NodeHandle homing_mode_nh(config_nh_, "homing");
+    {
+
+        bool homing;
+        int homing_method;
+        int timeout;
+        int homing_acceleration;
+        int speed_switch;
+        int speed_index;
+        int home_offset;
+        int current_threshold;
+        int home_position;
+
+        if(!ParameterSetLoader(homing_mode_nh)
+        .param("homing_acceleration", homing_acceleration)
+	    .param("speed_switch", speed_switch)
+	    .param("speed_index", speed_index)
+	    .param("home_offset", home_offset)
+	    .param("current_threshold", current_threshold)
+	    .param("home_position", home_position)
+	    .param("homing_method", homing_method)
+	    .param("timeout", timeout)
+	    .all_or_none(homing))
+        return false;
+
+        int position_raw;
+        VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position_raw, &error_code);
+        std::cout << "position_raw: " << position_raw << std::endl;
+        if(homing == 1 && position_raw == 1){
+            VCS(SetHomingParameter,
+	            homing_acceleration,
+	            speed_switch,
+	            speed_index,
+	            home_offset,
+	            current_threshold,
+	            home_position);
+
+	        ROS_INFO("Start Homing");
+            if(!VCS_FindHome(node_handle_->device_handle->ptr, node_handle_->node_id, homing_method, &error_code))
+                return false;
+
+            ROS_INFO("Waiting for homing attained");
+            if(!VCS_WaitForHomingAttained(node_handle_->device_handle->ptr, node_handle_->node_id, timeout, &error_code)){
+                VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
+                return false;
+            }
+        }
+        else{
+            ROS_INFO("No homing needed, proceeding with normal startup");
+        }
+    }
+  }
+
+  VCS(SetOperationMode, operation_mode_);
 
   ROS_INFO("Querying Faults");
   unsigned char num_errors;
@@ -510,13 +573,14 @@ bool Epos::init() {
     torque_constant_ = 1.0;
   }
 
-  ROS_INFO_STREAM("Enabling Motor");
-  if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
-    return false;
+  //ROS_INFO_STREAM("Enabling Motor");
+  //if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
+  // return false;
 
-  has_init_ = true;
-  return true;
-}
+
+    has_init_ = true;
+    return true;
+  }
 
 void Epos::read() {
   if(!has_init_)
@@ -689,5 +753,12 @@ void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &s
   }
 }
 
+bool Epos::stop_homing(){
+    unsigned int error_code;
+    if(!VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
+        return false;
+    else
+        return true;
 
+}
 }

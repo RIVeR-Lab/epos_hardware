@@ -47,5 +47,16 @@ void EposManager::write() {
   }
 }
 
+bool EposManager::stop_homing(){
+    bool success = true;
+    BOOST_FOREACH(const boost::shared_ptr<Epos>& motor, motors_) {
+        if(!motor->stop_homing()){
+          ROS_ERROR_STREAM("Could not stop motor: " << motor->name());
+          success = false;
+        }
+    }
+    return success;
+}
+
 
 }

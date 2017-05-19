@@ -156,6 +156,7 @@ bool Epos::init() {
     return false;
   }
 
+
   std::string fault_reaction_str;
 #define SET_FAULT_REACTION_OPTION(val)					\
   do {									\
@@ -500,8 +501,7 @@ bool Epos::init() {
 
         int position_raw;
         VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position_raw, &error_code);
-
-        if(homing == 1 && position_raw == 1){
+        if(homing == 1 && position_raw == 0){
             VCS(SetHomingParameter,
 	            homing_acceleration,
 	            speed_switch,

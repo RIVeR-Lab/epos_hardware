@@ -495,7 +495,7 @@ bool Epos::init() {
 	    .all_or_none(homing))
         return false;
 
-        int position_raw_init;
+        int position_raw;
         VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position_raw, &error_code);
 
         ROS_INFO_STREAM("Enabling Motor");
@@ -503,7 +503,7 @@ bool Epos::init() {
             return false;
 
         std::cout<<"current pos: "<< position_raw <<std::endl;
-        if(homing == 1 && position_raw_init == 0){
+        if(homing == 1 && position_raw == 0){
             VCS(SetHomingParameter,
 	            homing_acceleration,
 	            speed_switch,

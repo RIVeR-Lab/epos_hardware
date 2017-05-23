@@ -464,74 +464,6 @@ bool Epos::init() {
     }
   }
 
-  {
-    ROS_INFO("Configuring homing mode");
-
-    VCS(SetOperationMode, HOMING_MODE);
-
-    ROS_INFO("Getting Homing Parameters");
-    ros::NodeHandle homing_mode_nh(config_nh_, "homing");
-    {
-
-        bool homing;
-        int homing_method;
-        int timeout;
-        int homing_acceleration;
-        int speed_switch;
-        int speed_index;
-        int home_offset;
-        int current_threshold;
-        int home_position;
-
-        if(!ParameterSetLoader(homing_mode_nh)
-        .param("homing_acceleration", homing_acceleration)
-	    .param("speed_switch", speed_switch)
-	    .param("speed_index", speed_index)
-	    .param("home_offset", home_offset)
-	    .param("current_threshold", current_threshold)
-	    .param("home_position", home_position)
-	    .param("homing_method", homing_method)
-	    .param("timeout", timeout)
-	    .all_or_none(homing))
-        return false;
-
-        int position_raw;
-        VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position_raw, &error_code);
-
-        ROS_INFO_STREAM("Enabling Motor");
-        if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
-            return false;
-
-        std::cout<<"current pos: "<< position_raw <<std::endl;
-        if(homing == 1 && position_raw == 0){
-            VCS(SetHomingParameter,
-	            homing_acceleration,
-	            speed_switch,
-	            speed_index,
-	            home_offset,
-	            current_threshold,
-	            home_position);
-
-	        ROS_INFO("Start Homing");
-            if(!VCS_FindHome(node_handle_->device_handle->ptr, node_handle_->node_id, homing_method, &error_code)){
-                ROS_INFO("Found, Stop Homing");
-                VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
-                return false;
-            }
-
-
-            ROS_INFO("Waiting for homing attained");
-            if(!VCS_WaitForHomingAttained(node_handle_->device_handle->ptr, node_handle_->node_id, timeout, &error_code)){
-                VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
-                return false;
-            }
-        }
-        else{
-            ROS_INFO("No homing needed, proceeding with normal startup");
-        }
-    }
-  }
-
   VCS(SetOperationMode, operation_mode_);
 
   ROS_INFO("Querying Faults");
@@ -576,6 +508,10 @@ bool Epos::init() {
     ROS_WARN("No torque constant specified, you can supply one using the 'torque_constant' parameter");
     torque_constant_ = 1.0;
   }
+
+    ROS_INFO_STREAM("Enabling Motor");
+    if(!VCS_SetEnableState(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code))
+      return false;
 
     has_init_ = true;
     return true;
@@ -758,6 +694,73 @@ bool Epos::stop_homing(){
         return false;
     else
         return true;
+
+}
+
+bool Epos::start_homing(){
+    unsigned int error_code;
+    ROS_INFO("Configuring homing mode");
+
+    VCS(SetOperationMode, HOMING_MODE);
+
+    ROS_INFO("Getting Homing Parameters");
+    ros::NodeHandle homing_mode_nh(config_nh_, "homing");
+    {
+        bool homing;
+        int homing_method;
+        int timeout;
+        int homing_acceleration;
+        int speed_switch;
+        int speed_index;
+        int home_offset;
+        int current_threshold;
+        int home_position;
+
+        if(!ParameterSetLoader(homing_mode_nh)
+        .param("homing_acceleration", homing_acceleration)
+	    .param("speed_switch", speed_switch)
+	    .param("speed_index", speed_index)
+	    .param("home_offset", home_offset)
+	    .param("current_threshold", current_threshold)
+	    .param("home_position", home_position)
+	    .param("homing_method", homing_method)
+	    .param("timeout", timeout)
+	    .all_or_none(homing))
+        return false;
+
+        int position_raw;
+        VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position_raw, &error_code);
+
+        std::cout<<"current pos: "<< position_raw <<std::endl;
+        if(homing == 1){
+            VCS(SetHomingParameter,
+	            homing_acceleration,
+	            speed_switch,
+	            speed_index,
+	            home_offset,
+	            current_threshold,
+	            home_position);
+
+            ROS_INFO("Start Homing");
+            if(!VCS_FindHome(node_handle_->device_handle->ptr, node_handle_->node_id, homing_method, &error_code)){
+                ROS_INFO("Found, Stop Homing");
+                VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
+                return false;
+            }
+            
+            ROS_INFO("Waiting for homing attained");
+            if(!VCS_WaitForHomingAttained(node_handle_->device_handle->ptr, node_handle_->node_id, timeout, &error_code)){
+                ROS_INFO("Timed out");
+                VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
+                return false;
+            }
+
+        }
+        else{
+            ROS_INFO("No homing needed, proceeding with normal startup");
+            VCS(SetOperationMode, PROFILE_POSITION_MODE);
+        }
+    }
 
 }
 }

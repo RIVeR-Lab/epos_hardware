@@ -4,6 +4,7 @@
 #include <controller_manager/controller_manager.h>
 #include <vector>
 #include "epos_hardware/StopHoming.h"
+#include "epos_hardware/StartHoming.h"
 
 bool stopHoming(epos_hardware::StopHoming::Request  &req,
     epos_hardware::StopHoming::Response &res, epos_hardware::EposHardware* robot)
@@ -11,6 +12,15 @@ bool stopHoming(epos_hardware::StopHoming::Request  &req,
     res.stopped = robot->stop_homing();
     if(res.stopped == true)
         return true;
+}
+
+bool startHoming(epos_hardware::StartHoming::Request &req,
+    epos_hardware::StartHoming::Response &res, epos_hardware::EposHardware* robot)
+{
+    res.started = robot->start_homing();
+    if(res.started == true)
+        return true;
+
 }
 
 int main(int argc, char** argv) {
@@ -25,13 +35,16 @@ int main(int argc, char** argv) {
   epos_hardware::EposHardware robot(nh, pnh, motor_names);
   controller_manager::ControllerManager cm(&robot, nh);
 
-  ros::AsyncSpinner spinner(2);
+  ros::AsyncSpinner spinner(3);
   spinner.start();
 
   boost::function<bool(epos_hardware::StopHoming::Request & req, epos_hardware::StopHoming::Response & res)>
   stop_homing_cb = boost::bind(&stopHoming, _1, _2, &robot);
+  boost::function<bool(epos_hardware::StartHoming::Request & req, epos_hardware::StartHoming::Response & res)>
+  start_homing_cb = boost::bind(&startHoming, _1, _2, &robot);
 
   ros::ServiceServer stop_motor_homing = nh.advertiseService("stop_motor_homing", stop_homing_cb);
+  ros::ServiceServer start_motor_homing = nh.advertiseService("start_motor_homing", start_homing_cb);
 
   ROS_INFO("Initializing Motors");
   if(!robot.init()) {

@@ -100,4 +100,8 @@ void EposHardware::write() {
 bool EposHardware::stop_homing() {
   return epos_manager_.stop_homing();
 }
+
+bool EposHardware::start_homing() {
+  return epos_manager_.start_homing();
+}
 }

@@ -40,6 +40,7 @@ public:
   void read();
   void write();
   bool stop_homing();
+  bool start_homing();
   std::string name() { return name_; }
   std::string actuator_name() { return actuator_name_; }
   void update_diagnostics();

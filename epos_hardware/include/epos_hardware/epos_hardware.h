@@ -23,6 +23,7 @@ public:
   void read();
   void write();
   bool stop_homing();
+  bool start_homing();
   void update_diagnostics();
 private:
   hardware_interface::ActuatorStateInterface asi;

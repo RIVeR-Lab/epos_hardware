@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
   FILES
   StopHoming.srv
+  StartHoming.srv
 )
 
 generate_messages(

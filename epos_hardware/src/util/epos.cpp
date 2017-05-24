@@ -729,6 +729,9 @@ bool Epos::start_homing(){
         return false;
 
         int position_raw;
+        int homing_attained;
+        int homing_error;
+
         VCS_GetPositionIs(node_handle_->device_handle->ptr, node_handle_->node_id, &position_raw, &error_code);
 
         std::cout<<"current pos: "<< position_raw <<std::endl;
@@ -743,22 +746,28 @@ bool Epos::start_homing(){
 
             ROS_INFO("Start Homing");
             if(!VCS_FindHome(node_handle_->device_handle->ptr, node_handle_->node_id, homing_method, &error_code)){
-                ROS_INFO("Found, Stop Homing");
-                VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
                 return false;
             }
             
             ROS_INFO("Waiting for homing attained");
             if(!VCS_WaitForHomingAttained(node_handle_->device_handle->ptr, node_handle_->node_id, timeout, &error_code)){
-                ROS_INFO("Timed out");
-                VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
-                return false;
+                VCS_GetHomingState(node_handle_->device_handle->ptr, node_handle_->node_id, &homing_attained, &homing_error, &error_code);
+                if(homing_attained == 1){
+                    ROS_INFO("Done, Stop Homing");
+                    VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
+                    VCS(SetOperationMode, operation_mode_);
+                }
+                else{
+                    ROS_INFO("Timed_out");
+                    VCS_StopHoming(node_handle_->device_handle->ptr, node_handle_->node_id, &error_code);
+                    ROS_INFO("Stop Homing");
+                    return false;
+                }
             }
-
         }
         else{
             ROS_INFO("No homing needed, proceeding with normal startup");
-            VCS(SetOperationMode, PROFILE_POSITION_MODE);
+            VCS(SetOperationMode, operation_mode_);
         }
     }
 

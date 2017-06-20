@@ -1,0 +1,4 @@
+string motor_name
+uint64 max_profile_velocity
+---
+bool success

@@ -10,6 +10,7 @@
 #include "epos_hardware/utils.h"
 #include "epos_hardware/epos.h"
 #include "epos_hardware/epos_manager.h"
+#include "epos_hardware/SetMaxProfileVelocity.h"
 
 
 namespace epos_hardware {
@@ -21,6 +22,7 @@ public:
   void read();
   void write();
   void update_diagnostics();
+  bool change_profile_velocity(epos_hardware::SetMaxProfileVelocityRequest &request, epos_hardware::SetMaxProfileVelocityResponse &response);
 private:
   hardware_interface::ActuatorStateInterface asi;
   hardware_interface::VelocityActuatorInterface avi;

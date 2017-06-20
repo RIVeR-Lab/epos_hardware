@@ -41,6 +41,7 @@ public:
   std::string name() { return name_; }
   std::string actuator_name() { return actuator_name_; }
   void update_diagnostics();
+  bool update_position_profile_velocity(unsigned int new_velocity);
 private:
   ros::NodeHandle config_nh_;
   diagnostic_updater::Updater diagnostic_updater_;

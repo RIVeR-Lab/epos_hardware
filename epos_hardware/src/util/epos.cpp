@@ -646,6 +646,40 @@ void Epos::buildMotorStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
   }
 }
 
+bool Epos::update_position_profile_velocity(unsigned int new_velocity)
+{
+  unsigned int error_code;
+  ROS_INFO("Updating Position Profile");
+  ros::NodeHandle position_profile_nh(config_nh_, "position_profile");
+  {
+    bool position_profile;
+    int velocity, acceleration, deceleration;
+    if(!ParameterSetLoader(position_profile_nh)
+ .param("acceleration", acceleration)
+ .param("deceleration", deceleration)
+ .all_or_none(position_profile))
+    {
+      return false;
+    }
+    if (new_velocity > max_profile_velocity_)
+    {
+      ROS_WARN_STREAM("New velocity value: " << new_velocity << " is higher than max velocity value: " << max_profile_velocity_);
+      ROS_WARN_STREAM("For safety, velocity is not updated");
+      return false;
+    }
+    if(position_profile){
+      VCS(SetPositionProfile, new_velocity, acceleration, deceleration);
+    }
+    else
+    {
+      ROS_WARN_STREAM("Attempted to change profile velocity of a non position profile motor");
+      return false;
+    }
+  }
+  return true;
+}
+
+
 void Epos::buildMotorOutputStatus(diagnostic_updater::DiagnosticStatusWrapper &stat) {
   std::string operation_mode_str;
   if(operation_mode_ == PROFILE_POSITION_MODE) {

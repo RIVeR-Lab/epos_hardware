@@ -3,6 +3,7 @@
 #include "epos_hardware/epos_hardware.h"
 #include <controller_manager/controller_manager.h>
 #include <vector>
+#include "epos_hardware/SetMaxProfileVelocity.h"
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "epos_velocity_hardware");
@@ -26,6 +27,7 @@ int main(int argc, char** argv) {
   }
   ROS_INFO("Motors Initialized");
 
+  ros::ServiceServer change_profile_velocity_service = nh.advertiseService("change_profile_velocity", &epos_hardware::EposHardware::change_profile_velocity, &robot);
   ros::Rate controller_rate(50);
   ros::Time last = ros::Time::now();
   while (ros::ok()) {

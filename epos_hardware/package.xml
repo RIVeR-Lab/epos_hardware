@@ -13,12 +13,15 @@
   <author email="mwills@wpi.edu">Mitchell Wills</author>
 
   <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_runtime</build_depend>
+  <build_depend>message_generation</build_depend>
   <build_depend>epos_library</build_depend>
   <build_depend>hardware_interface</build_depend>
   <build_depend>transmission_interface</build_depend>
   <build_depend>controller_manager</build_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>diagnostic_updater</build_depend>
+  <run_depend>message_runtime</run_depend>
   <run_depend>epos_library</run_depend>
   <run_depend>hardware_interface</run_depend>
   <run_depend>transmission_interface</run_depend>

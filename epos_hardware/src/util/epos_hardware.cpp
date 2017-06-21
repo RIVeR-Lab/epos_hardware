@@ -97,4 +97,32 @@ void EposHardware::write() {
   epos_manager_.write();
 }
 
+bool EposHardware::change_profile_velocity(epos_hardware::SetMaxProfileVelocityRequest &request, epos_hardware::SetMaxProfileVelocityResponse &response)
+{
+  bool found = false;
+  epos_manager_.motors();
+  boost::shared_ptr<Epos> found_epos;
+  BOOST_FOREACH(const boost::shared_ptr<Epos>& epos, epos_manager_.motors())
+  {
+    epos->name();
+    if (epos->name() == request.motor_name)
+    {
+      found_epos = epos;
+      found = true;
+      break;
+    }
+  }
+  if (!found)
+  {
+    ROS_WARN_STREAM("Could not find motor name " << request.motor_name << std::endl);
+    response.success = false;
+    return false;
+  }
+  if (found_epos->update_position_profile_velocity(request.max_profile_velocity))
+  {
+    response.success = true;
+    return true;
+  }
+  return false;
+}
 }

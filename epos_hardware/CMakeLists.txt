@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   diagnostic_updater
   message_generation
+  message_runtime
 )
 add_service_files(
   FILES
@@ -20,7 +21,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES epos_library_utils epos_manager epos_hardware
-  CATKIN_DEPENDS epos_library hardware_interface roscpp controller_manager diagnostic_updater
+  CATKIN_DEPENDS epos_library hardware_interface roscpp controller_manager diagnostic_updater message_runtime
 )
 
 ###########

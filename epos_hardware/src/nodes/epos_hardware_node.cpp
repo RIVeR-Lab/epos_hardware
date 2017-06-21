@@ -4,6 +4,7 @@
 #include <controller_manager/controller_manager.h>
 #include <vector>
 
+
 int main(int argc, char** argv) {
   ros::init(argc, argv, "epos_velocity_hardware");
   ros::NodeHandle nh;
@@ -16,7 +17,7 @@ int main(int argc, char** argv) {
   epos_hardware::EposHardware robot(nh, pnh, motor_names);
   controller_manager::ControllerManager cm(&robot, nh);
 
-  ros::AsyncSpinner spinner(1);
+  ros::AsyncSpinner spinner(3);
   spinner.start();
 
   ROS_INFO("Initializing Motors");

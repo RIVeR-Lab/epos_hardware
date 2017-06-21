@@ -8,6 +8,19 @@ find_package(catkin REQUIRED COMPONENTS
   controller_manager
   roscpp
   diagnostic_updater
+  std_msgs
+  message_generation
+)
+
+add_service_files(
+  FILES
+  StopHoming.srv
+  StartHoming.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
 )
 
 catkin_package(

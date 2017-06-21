@@ -73,6 +73,10 @@ EposHardware::EposHardware(ros::NodeHandle& nh, ros::NodeHandle& pnh, const std:
     }
   }
 
+  // Advertise services
+  stop_motor_homing = nh.advertiseService("stop_motor_homing", &EposHardware::stopHomingSrv, this);
+  start_motor_homing = nh.advertiseService("start_motor_homing", &EposHardware::startHomingSrv, this);
+
 }
 
 bool EposHardware::init() {
@@ -97,4 +101,19 @@ void EposHardware::write() {
   epos_manager_.write();
 }
 
+bool EposHardware::stopHomingSrv(epos_hardware::StopHoming::Request  &req,
+    epos_hardware::StopHoming::Response &res)
+{
+    res.stopped = epos_manager_.stop_homing();
+    if(res.stopped == true)
+        return true;
+}
+
+bool EposHardware::startHomingSrv(epos_hardware::StartHoming::Request &req,
+    epos_hardware::StartHoming::Response &res)
+{
+    res.started = epos_manager_.start_homing();
+    if(res.started == true)
+        return true;
+}
 }

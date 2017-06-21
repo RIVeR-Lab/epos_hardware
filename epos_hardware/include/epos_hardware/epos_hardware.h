@@ -12,6 +12,8 @@
 #include "epos_hardware/utils.h"
 #include "epos_hardware/epos.h"
 #include "epos_hardware/epos_manager.h"
+#include "epos_hardware/StopHoming.h"
+#include "epos_hardware/StartHoming.h"
 
 
 namespace epos_hardware {
@@ -32,6 +34,14 @@ private:
 
   transmission_interface::RobotTransmissions robot_transmissions;
   boost::scoped_ptr<transmission_interface::TransmissionInterfaceLoader> transmission_loader;
+
+  bool stopHomingSrv(epos_hardware::StopHoming::Request &req,
+                     epos_hardware::StopHoming::Response &res);
+
+  bool startHomingSrv(epos_hardware::StartHoming::Request &req,
+                      epos_hardware::StartHoming::Response &res);
+
+  ros::ServiceServer stop_motor_homing, start_motor_homing;
 };
 
 }

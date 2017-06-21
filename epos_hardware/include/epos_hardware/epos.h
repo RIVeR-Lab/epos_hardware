@@ -25,7 +25,8 @@ class Epos {
 public:
   typedef enum {
     PROFILE_POSITION_MODE = 1,
-    PROFILE_VELOCITY_MODE = 3
+    PROFILE_VELOCITY_MODE = 3,
+    HOMING_MODE = 6
   } OperationMode;
 
   Epos(const std::string& name,
@@ -38,6 +39,8 @@ public:
   bool init();
   void read();
   void write();
+  bool stop_homing();
+  bool start_homing();
   std::string name() { return name_; }
   std::string actuator_name() { return actuator_name_; }
   void update_diagnostics();

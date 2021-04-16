@@ -27,11 +27,12 @@ int main(int argc, char** argv) {
   ROS_INFO("Motors Initialized");
 
   ros::Rate controller_rate(50);
-  ros::Time last = ros::Time::now();
+  ros::SteadyTime last = ros::SteadyTime::now();
   while (ros::ok()) {
     robot.read();
-    ros::Time now = ros::Time::now();
-    cm.update(now, now-last);
+    ros::SteadyTime now = ros::SteadyTime::now();
+    ros::WallDuration period = now-last;
+    cm.update(ros::Time::now(), ros::Duration(period.sec, period.nsec));
     robot.write();
     last = now;
     robot.update_diagnostics();
